@@ -1,0 +1,65 @@
+name: AShare best-effort intraday snapshots
+on:
+  schedule:
+    # UTC+8 session hours: 09:32-11:27, 13:02-14:57 weekdays.
+    # GitHub schedules can be delayed or skipped and are NOT a real-time feed.
+    - cron: '32,37,42,47,52,57 1 * * 1-5'
+    - cron: '2,7,12,17,22,27,32,37,42,47,52,57 2 * * 1-5'
+    - cron: '2,7,12,17,22,27 3 * * 1-5'
+    - cron: '2,7,12,17,22,27,32,37,42,47,52,57 5-6 * * 1-5'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: ashare-quote-feed
+  cancel-in-progress: false
+jobs:
+  intraday:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Confirm exchange-session local clock
+        id: clock
+        shell: bash
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          t=datetime.now(ZoneInfo('Asia/Shanghai'))
+          minute=t.hour*60+t.minute
+          ok=t.weekday()<5 and (570<=minute<=690 or 780<=minute<=900)
+          print('run='+str(ok).lower())
+          PY
+      - name: Collect checked public quotes
+        if: steps.clock.outputs.run == 'true'
+        run: python scripts/update_quotes.py --output /tmp/ashare-latest-quotes.json
+      - name: Publish isolated single-commit quote-feed branch
+        if: steps.clock.outputs.run == 'true'
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git ls-remote --exit-code --heads origin quote-feed >/dev/null 2>&1; then
+            git fetch --depth=1 origin quote-feed
+            git checkout -B quote-feed FETCH_HEAD
+            mkdir -p data
+            cp /tmp/ashare-latest-quotes.json data/quotes.json
+            git add data/quotes.json
+            # Amend single orphan commit to reduce high-frequency history growth.
+            git commit --amend --no-edit
+            git push --force-with-lease origin HEAD:quote-feed
+          else
+            git checkout --orphan quote-feed
+            git rm -r --cached . >/dev/null 2>&1 || true
+            mkdir -p data
+            cp /tmp/ashare-latest-quotes.json data/quotes.json
+            git add data/quotes.json
+            git commit -m 'data: latest intraday quote snapshot'
+            git push origin HEAD:quote-feed
+          fi
