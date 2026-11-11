@@ -132,7 +132,7 @@ $('stockSearch').addEventListener('input',renderScreen);
 document.addEventListener('click',event=>{const d=event.target.closest('[data-detail]');if(d)analyze(d.dataset.detail);const add=event.target.closest('[data-add-watch]');if(add)addWatch(add.dataset.addWatch);const w=event.target.closest('[data-remove-watch]');if(w){watch=watch.filter(c=>c!==w.dataset.removeWatch);saveLocal('watch',watch);renderWatch()}const p=event.target.closest('[data-remove-pos]');if(p){positions.splice(Number(p.dataset.removePos),1);saveLocal('positions',positions);renderPositions()}});
 function resolveStockInput(value){
  const raw=String(value||'').trim();
- const codeMatch=raw.match(/^(\\d{6})(?:\\s|$)/);
+ const codeMatch=raw.match(/^(\d{6})(?:\s|$)/);
  if(codeMatch)return codeMatch[1];
  if(validCode(raw))return raw;
  if(stockMasterReady){
