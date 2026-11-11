@@ -6,6 +6,9 @@ from core import ROOT,atomic_json,norm_spot
 
 def main(output=ROOT/'quotes.json'):
     payload=norm_spot(ak.stock_zh_a_spot_em())
+    # Intraday frontend only needs name and latest price; keep this branch lean.
+    payload['quotes']={code:{k:q[k] for k in ('name','price','change_pct')}
+        for code,q in payload['quotes'].items()}
     atomic_json(Path(output),payload)
     print('Saved',payload['count'],'quotes at',payload['fetched_at'])
     return payload
