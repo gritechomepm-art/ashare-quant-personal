@@ -39,7 +39,7 @@ jobs:
           import os
           from datetime import datetime
           from zoneinfo import ZoneInfo
-          if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch":
+          if os.environ.get("GITHUB_EVENT_NAME") != "schedule":
               print("run=true")
           else:
               t = datetime.now(ZoneInfo("Asia/Shanghai"))

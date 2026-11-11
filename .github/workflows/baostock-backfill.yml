@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/baostock-backfill.yml'
       - 'scripts/ingest_baostock.py'
+      - 'scripts/core.py'
+      - 'tests/test_core.py'
   schedule:
     # 17:15 Beijing on trading weekdays; use only completed EOD history.
     - cron: '15 9 * * 1-5'

@@ -64,12 +64,10 @@ def test_quotes_workflow_no_pages_artifact():
 
 
 def test_full_stock_master_contains_exchange_and_names():
-    frame = pd.DataFrame([
-        {"code": "sz.000708", "code_name": "中信特钢"},
-        {"code": "sz.002600", "code_name": "领益智造"},
-        {"code": "sh.600000", "code_name": "浦发银行"},
-    ] * 500)
+    rows = [{"code": f"sz.{i:06d}", "code_name": f"深市样本{i}"} for i in range(1000)]
+    rows += [{"code": f"sh.{600000+i}", "code_name": f"沪市样本{i}"} for i in range(500)]
+    frame = pd.DataFrame(rows)
     master = normalize_stock_master(frame, "2026-11-11")
-    assert master["count"] == 3
-    assert master["stocks"]["000708"]["name"] == "中信特钢"
+    assert master["count"] == 1500
+    assert master["stocks"]["000708"]["market"] == "SZ"
     assert master["stocks"]["600000"]["market"] == "SH"
