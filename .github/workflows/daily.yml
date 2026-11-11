@@ -1,0 +1,43 @@
+name: AShare daily EOD screening
+on:
+  schedule:
+    # 16:35 Asia/Shanghai = 08:35 UTC, weekdays; Python checks A-share calendar.
+    - cron: '35 8 * * 1-5'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency:
+  group: ashare-market-publish
+  cancel-in-progress: false
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Collect close and incrementally bootstrap history
+        run: python scripts/update_daily.py --max-new 300 --max-seconds 1300
+      - name: Commit only public EOD data
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/
+          if ! git diff --cached --quiet; then
+            git commit -m 'data: EOD research screen [skip ci]'
+            git push
+          fi
+      - run: python scripts/build_site.py
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - uses: actions/deploy-pages@v4
