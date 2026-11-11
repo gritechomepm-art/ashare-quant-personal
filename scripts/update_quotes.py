@@ -14,7 +14,7 @@ DEFAULT_WATCHLIST=ROOT/"data"/"watchlist_public.json"
 
 def market_symbol(code):
     code=str(code).strip()
-    if not re.fullmatch(r"\\d{6}",code): raise ValueError(f"Invalid A-share code: {code}")
+    if not re.fullmatch(r"\d{6}",code): raise ValueError(f"Invalid A-share code: {code}")
     if code.startswith("6"): return "sh"+code
     if code.startswith(("0","3")): return "sz"+code
     if code.startswith(("4","8")): return "bj"+code
@@ -32,13 +32,13 @@ def number(value,field,required=False):
 
 def parse_tencent_response(raw,requested_codes):
     found={}
-    for market,code,body in re.findall(r'v_(sh|sz|bj)(\\d{6})="([^"]*)"',raw):
+    for market,code,body in re.findall(r'v_(sh|sz|bj)(\d{6})="([^"]*)"',raw):
         f=body.split("~")
         if len(f)<35 or code not in requested_codes or f[2]!=code: continue
         price=number(f[3],"price",True); prev=number(f[4],"prev_close",True)
         if price<=0 or prev<=0: raise ValueError(f"Invalid price for {code}")
         stamp=(f[30] or "").strip()
-        if not re.fullmatch(r"\\d{14}",stamp): raise ValueError(f"Invalid Tencent timestamp for {code}: {stamp!r}")
+        if not re.fullmatch(r"\d{14}",stamp): raise ValueError(f"Invalid Tencent timestamp for {code}: {stamp!r}")
         qt=datetime.strptime(stamp,"%Y%m%d%H%M%S").replace(tzinfo=CST).isoformat()
         found[code]={"name":f[1].strip(),"price":round(price,3),"prev_close":round(prev,3),
           "open":number(f[5],"open"),"volume_lots":int(number(f[6],"volume_lots") or 0),
