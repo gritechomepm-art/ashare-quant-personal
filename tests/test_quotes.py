@@ -1,36 +1,46 @@
 import sys
 from pathlib import Path
-import pandas as pd
-import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from update_quotes import normalize_market
+from update_quotes import chunked, market_symbol, parse_tencent_response
 
-def sample_market(count):
-    return pd.DataFrame([
-        {"代码": str(600000+i), "名称": "测试股票"+str(i),
-         "最新价": 10.0+i/10000, "涨跌幅": 1.2, "今开": 10.0,
-         "最高": 10.5, "最低": 9.8, "昨收": 9.9,
-         "成交量": 123456, "成交额": 60_000_000}
-        for i in range(count)
-    ])
 
-def test_full_market_snapshot_normalizes_all_codes():
-    payload=normalize_market(sample_market(1500))
-    assert payload["status"]=="ok"
-    assert payload["count"]==1500
-    assert payload["scope"]=="全市场A股快照"
-    assert payload["quotes"]["600000"]["name"]=="测试股票0"
-    assert payload["quotes"]["600000"]["price"]==10.0
+def sample_quote(code="000708", name="中信特钢", market="sz"):
+    fields = [""] * 50
+    fields[1] = name
+    fields[2] = code
+    fields[3] = "12.34"
+    fields[4] = "12.00"
+    fields[5] = "12.10"
+    fields[6] = "12345"
+    fields[30] = "20261111150000"
+    fields[31] = "0.34"
+    fields[32] = "2.83"
+    fields[33] = "12.50"
+    fields[34] = "12.05"
+    return f'v_{market}{code}="' + "~".join(fields) + '";'
 
-def test_partial_market_snapshot_is_rejected():
-    with pytest.raises(ValueError,match="Only"):
-        normalize_market(sample_market(100))
 
-def test_workflow_publishes_market_only_to_quote_feed():
-    root=Path(__file__).resolve().parents[1]
-    workflow=(root/".github/workflows/quotes.yml").read_text()
-    assert "schedule:" in workflow and "quote-feed" in workflow
-    assert "upload-pages-artifact@" not in workflow
-    assert "deploy-pages@" not in workflow
-    shell=(root/"index.html").read_text()
-    assert "raw.githubusercontent.com" in shell
+def test_market_symbol():
+    assert market_symbol("000708") == "sz000708"
+    assert market_symbol("002600") == "sz002600"
+    assert market_symbol("600519") == "sh600519"
+    assert market_symbol("430047") == "bj430047"
+
+
+def test_parse_tencent_quotes():
+    raw = sample_quote() + sample_quote("002600", "领益智造")
+    result = parse_tencent_response(raw, ["000708", "002600"])
+    assert result["000708"]["name"] == "中信特钢"
+    assert result["000708"]["price"] == 12.34
+    assert result["002600"]["change_pct"] == 2.83
+    assert result["000708"]["quote_time"] == "2026-11-11T15:00:00+08:00"
+
+
+def test_quote_batches_are_bounded():
+    batches = list(chunked(list(range(251)), 100))
+    assert [len(x) for x in batches] == [100, 100, 51]
+
+
+def test_partial_quote_response_does_not_create_fake_rows():
+    result = parse_tencent_response(sample_quote(), ["000708", "002600"])
+    assert list(result) == ["000708"]

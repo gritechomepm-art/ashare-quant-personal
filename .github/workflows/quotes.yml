@@ -7,6 +7,7 @@ on:
       - 'scripts/update_quotes.py'
       - 'scripts/core.py'
       - 'tests/test_quotes.py'
+      - 'data/stocks.json'
   schedule:
     - cron: '32,37,42,47,52,57 1 * * 1-5'
     - cron: '2,7,12,17,22,27,32,37,42,47,52,57 2 * * 1-5'
@@ -27,8 +28,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install quote dependencies
-        run: python -m pip install -r requirements.txt
+      - name: Install quote test dependency
+        run: python -m pip install pytest
       - name: Validate quote normalization
         run: pytest -q tests/test_quotes.py
       - name: Check market session
