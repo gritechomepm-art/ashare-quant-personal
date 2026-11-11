@@ -46,8 +46,8 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           if git ls-remote --exit-code --heads origin quote-feed >/dev/null 2>&1; then
-            git fetch --depth=1 origin quote-feed
-            git checkout -B quote-feed FETCH_HEAD
+            git fetch --depth=1 origin quote-feed:refs/remotes/origin/quote-feed
+            git checkout -B quote-feed refs/remotes/origin/quote-feed
             mkdir -p data
             cp /tmp/ashare-latest-quotes.json data/quotes.json
             git add data/quotes.json
