@@ -13,6 +13,7 @@
 ## 启用 GitHub Pages
 1. 打开仓库 **Settings → Pages → Build and deployment → Source**，选择 **GitHub Actions**。
 2. 打开 **Actions → AShare source tests and GitHub Pages → Run workflow**，并确认所有检查成功。
+   - 也可以通过 `main` 分支的新提交触发部署；GitHub Pages 刚启用后，之前失败的工作流**不会自动变为成功**。
 3. 网址：`https://gritechomepm-art.github.io/ashare-quant-personal/`，成功发布后才能访问。
 4. **Actions → AShare daily EOD screening → Run workflow**：北京时间交易日收盘15:15以后才能运行。首次分批收集历史K线，每次最多300只；覆盖不足会明确标注。
 5. **AShare best-effort intraday snapshots** 仅在A股工作日交易时段自动尝试更新，计划约5分钟一次，但 GitHub 调度和免费行情源可能延迟、被限流或失败。
