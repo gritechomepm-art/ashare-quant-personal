@@ -1,0 +1,23 @@
+name: AShare BaoStock history source probe
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/baostock-probe.yml'
+      - 'scripts/probe_baostock.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned history provider
+        run: python -m pip install 'baostock==0.9.4' 'pandas>=2.2,<3'
+      - name: Test BaoStock login, calendar, universe and two daily histories
+        run: python scripts/probe_baostock.py
