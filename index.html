@@ -88,8 +88,8 @@ async function fetchQuotesWithFallback(){
  const repo=decodeURIComponent(location.pathname.split('/').filter(Boolean)[0]||'');
  const owner=host[0];
  if(host.length===3&&host[1]==='github'&&host[2]==='io'&&/^[a-z0-9_.-]+$/i.test(owner)&&/^[a-z0-9_.-]+$/i.test(repo)){
-  const direct=`https://raw.githubusercontent.com/${owner}/${repo}/main/data/quotes.json`;
-  try{const q=await fetchJSON(direct);if(q?.schema!==1)throw Error('报价格式无效');q.delivery='GitHub 公开仓库快照';return q}
+  const direct=`https://raw.githubusercontent.com/${owner}/${repo}/quote-feed/data/quotes.json`;
+  try{const q=await fetchJSON(direct);if(q?.schema!==1)throw Error('报价格式无效');q.delivery='GitHub 独立行情分支快照';return q}
   catch(e){console.warn('Fast quote feed unavailable; using last deployed snapshot:',e.message)}
  }
  const q=await fetchJSON('./data/quotes.json');q.delivery='网页部署时的行情备份（可能滞后）';return q;
