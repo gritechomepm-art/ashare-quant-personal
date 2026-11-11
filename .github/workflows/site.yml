@@ -26,6 +26,18 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - run: pytest -q
+      - name: Validate browser JavaScript syntax
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path("index.html").read_text(encoding="utf-8")
+          scripts = re.findall(r"<script(?:\\s[^>]*)?>(.*?)</script>", html, flags=re.S)
+          if not scripts:
+              raise SystemExit("No inline JavaScript found")
+          Path("/tmp/ashare-index.js").write_text("\\n".join(scripts), encoding="utf-8")
+          PY
+          node --check /tmp/ashare-index.js
       - run: python scripts/build_site.py
       - uses: actions/configure-pages@v5
         with:
