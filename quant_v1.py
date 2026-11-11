@@ -1,0 +1,125 @@
+#!/usr/bin/env python3
+"""A-share educational daily-bar scanner/backtester (NO brokerage integrations)."""
+import argparse
+from pathlib import Path
+import numpy as np
+import pandas as pd
+
+COLS={'日期':'date','开盘':'open','收盘':'close','最高':'high','最低':'low','成交量':'volume','成交额':'amount','换手率':'turnover'}
+
+def load_csv(path):
+    x=pd.read_csv(path,encoding='utf-8-sig').rename(columns=COLS)
+    need={'date','open','high','low','close','volume'}
+    if not need.issubset(x.columns): raise ValueError(f'{path}: missing {need-set(x.columns)}')
+    x['date']=pd.to_datetime(x['date']); x=x.sort_values('date').drop_duplicates('date')
+    for k in ['open','high','low','close','volume']:
+        x[k]=pd.to_numeric(x[k],errors='coerce')
+    x=x.dropna(subset=list(need)).reset_index(drop=True)
+    if (x[['open','high','low','close']]<=0).any().any(): raise ValueError('Invalid price: nonpositive')
+    return x
+
+def enrich(x):
+    x=x.copy(); c=x.close
+    x['ma5']=c.rolling(5).mean(); x['ma10']=c.rolling(10).mean(); x['ma20']=c.rolling(20).mean()
+    x['vol5_prev']=x.volume.shift(1).rolling(5).mean()
+    pc=c.shift(1); tr=pd.concat([x.high-x.low,(x.high-pc).abs(),(x.low-pc).abs()],axis=1).max(axis=1)
+    x['atr14']=tr.rolling(14).mean()
+    delta=c.diff()
+    up=delta.clip(lower=0).ewm(alpha=1/14,adjust=False,min_periods=14).mean()
+    dn=(-delta.clip(upper=0)).ewm(alpha=1/14,adjust=False,min_periods=14).mean()
+    rs=up/dn.replace(0,np.nan); x['rsi14']=100-100/(1+rs)
+    x['past20_high']=x.high.shift(1).rolling(20).max()
+    # All fields use the current close and earlier. Signals are actionable only NEXT session.
+    x['signal']=(c>x.ma5)&(x.ma5>x.ma5.shift(1))&(x.ma5>x.ma10)&(x.volume>=1.15*x.vol5_prev)&x.rsi14.between(45,75)&(c>=x.past20_high*0.97)&(c<=x.past20_high*1.05)
+    x['score']=((c>x.ma5)*25+(x.ma5>x.ma10)*20+(x.volume>=1.15*x.vol5_prev)*20+x.rsi14.between(45,75)*15+(c>=x.past20_high*0.97)*20).astype(int)
+    return x
+
+def backtest_one(x,code,fee=0.0003,stamp=0.0005,minfee=5,slip=0.001,maxhold=10,stop_atr=1.7):
+    """Single-stock simulation: signal at close, next-open entry/exit, 100 shares.
+    Models costs and T+1 direction, but NOT suspensions, limit-ups/downs or corporate actions.
+    """
+    x=enrich(x); trades=[]; i=35
+    while i<len(x)-1:
+        if not bool(x.loc[i,'signal']):i+=1;continue
+        entry_i=i+1;price=float(x.loc[entry_i,'open'])*(1+slip)
+        if not np.isfinite(price) or price<=0:i+=1;continue
+        entrycost=price*100;buyfee=max(minfee,entrycost*fee)
+        atr=float(x.loc[i,'atr14']);stop=price-max(0.01,stop_atr*atr)
+        peak=float(x.loc[entry_i,'close']);exit_signal=entry_i+maxhold-1;reason='time'
+        for j in range(entry_i,len(x)-1):
+            peak=max(peak,float(x.loc[j,'close']))
+            trailing=max(stop,peak-max(0.01,stop_atr*atr))
+            if j>=entry_i and (x.loc[j,'close']<trailing or x.loc[j,'close']<x.loc[j,'ma5']):
+                exit_signal=j;reason='risk';break
+            if j>=entry_i+maxhold-1:exit_signal=j;reason='time';break
+        exit_i=min(exit_signal+1,len(x)-1)
+        if exit_i<=entry_i:i=entry_i+1;continue
+        sellprice=float(x.loc[exit_i,'open'])*(1-slip);sellvalue=sellprice*100
+        sellfee=max(minfee,sellvalue*fee)+sellvalue*stamp
+        pnl=sellvalue-entrycost-buyfee-sellfee
+        trades.append({'code':code,'signal_date':str(x.loc[i,'date'].date()),
+                       'entry_date':str(x.loc[entry_i,'date'].date()),
+                       'exit_date':str(x.loc[exit_i,'date'].date()),'entry':round(price,3),
+                       'exit':round(sellprice,3),'shares':100,'bars_held':exit_i-entry_i,
+                       'exit_reason':reason,'pnl_yuan':round(pnl,2),
+                       'return_pct':round(100*pnl/(entrycost+buyfee),3)})
+        i=exit_i+1
+    return trades
+
+def evaluate(trades):
+    if not trades:return {'trades':0,'status':'NO_TRADES'}
+    d=pd.DataFrame(trades);p=d.pnl_yuan.astype(float);curve=p.cumsum()
+    drawdown=curve-curve.cummax().clip(lower=0)
+    win=p[p>0];lose=p[p<0]
+    return {'trades':len(d),'win_rate_pct':round(100*(p>0).mean(),2),
+            'net_profit_yuan':round(p.sum(),2),'mean_pnl_yuan':round(p.mean(),2),
+            'profit_factor':round(win.sum()/(-lose.sum()),2) if len(lose) else None,
+            'max_trade_equity_drawdown_yuan':round(drawdown.min(),2),
+            'worst_trade_yuan':round(p.min(),2),
+            'max_holding_days':int(d.bars_held.max()),
+            'note':'Trade-level sum, not portfolio CAGR or portfolio max drawdown'}
+
+def fetch(codes,start,end,output):
+    import akshare as ak
+    output.mkdir(parents=True,exist_ok=True)
+    ok=[];fail=[]
+    for code in codes:
+        try:
+            raw=ak.stock_zh_a_hist(symbol=code,period='daily',start_date=start,end_date=end,adjust='')
+            if raw is None or len(raw)<65:raise ValueError('not enough daily rows')
+            raw.to_csv(output/f'{code}.csv',index=False,encoding='utf-8-sig');ok.append(code)
+        except Exception as exc:fail.append((code,str(exc)[:150]))
+    print('downloaded',ok,'errors',fail)
+
+def run(csvdir,out,asof=None,hold=10):
+    out.mkdir(parents=True,exist_ok=True);signals=[];trades=[];errors=[]
+    for path in sorted(csvdir.glob('*.csv')):
+        try:
+            code=path.stem;raw=load_csv(path)
+            if asof:raw=raw[raw.date<=pd.Timestamp(asof)].reset_index(drop=True)
+            if len(raw)<65:errors.append({'code':code,'error':'less than 65 observations'});continue
+            x=enrich(raw);last=x.iloc[-1]
+            signals.append({'code':code,'asof_date':str(last.date.date()),'close':round(float(last.close),3),
+                            'score':int(last.score),'watch_signal':bool(last.signal),
+                            'ma5':round(float(last.ma5),3),'ma10':round(float(last.ma10),3),
+                            'atr14':round(float(last.atr14),3),
+                            'next_action':'WATCH_NEXT_SESSION_OPEN' if last.signal else 'NO_SIGNAL'})
+            trades+=backtest_one(raw,code,maxhold=hold)
+        except Exception as e:errors.append({'code':path.stem,'error':str(e)[:200]})
+    pd.DataFrame(signals,columns=['code','asof_date','close','score','watch_signal','ma5','ma10','atr14','next_action']).sort_values('score',ascending=False).to_csv(out/'signals.csv',index=False,encoding='utf-8-sig')
+    pd.DataFrame(trades,columns=['code','signal_date','entry_date','exit_date','entry','exit','shares','bars_held','exit_reason','pnl_yuan','return_pct']).to_csv(out/'trades.csv',index=False,encoding='utf-8-sig')
+    pd.DataFrame([evaluate(trades)]).to_csv(out/'metrics.csv',index=False,encoding='utf-8-sig')
+    pd.DataFrame(errors,columns=['code','error']).to_csv(out/'errors.csv',index=False,encoding='utf-8-sig')
+    print(f'Analysed {len(signals)} stocks, {len(trades)} trades, {len(errors)} errors. Output: {out}')
+
+def main():
+    ap=argparse.ArgumentParser();sub=ap.add_subparsers(dest='cmd',required=True)
+    a=sub.add_parser('fetch');a.add_argument('--codes',nargs='+',required=True)
+    a.add_argument('--start',default='20230101');a.add_argument('--end',default='20261030');a.add_argument('--out',default='data')
+    b=sub.add_parser('run');b.add_argument('--data',default='data');b.add_argument('--out',default='results')
+    b.add_argument('--asof');b.add_argument('--hold',type=int,default=10)
+    z=ap.parse_args()
+    if z.cmd=='fetch':fetch(z.codes,z.start,z.end,Path(z.out))
+    else:run(Path(z.data),Path(z.out),z.asof,z.hold)
+
+if __name__=='__main__':main()
