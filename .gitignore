@@ -1,0 +1,10 @@
+.venv/
+site/
+__pycache__/
+.pytest_cache/
+*.pyc
+.env
+*.log
+*.db
+private_*
+ashare_private_backup*.json
