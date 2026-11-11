@@ -1,4 +1,5 @@
 import sys
+# Trigger a full-universe quote refresh after the BaoStock stock master is published.
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from update_quotes import chunked, market_symbol, parse_tencent_response
