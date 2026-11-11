@@ -16,10 +16,16 @@ SAMPLES = {"sz.000708": "中信特钢", "sz.002600": "领益智造"}
 def checked_frame(rs, label):
     if rs.error_code != "0":
         raise RuntimeError(f"{label}: BaoStock error {rs.error_code} - {rs.error_msg}")
-    df = rs.get_data()
-    if df is None:
-        raise RuntimeError(f"{label}: returned None")
-    return df
+    # BaoStock 0.9.4 ResultData.get_data uses pandas.DataFrame.append,
+    # removed in pandas >=2. Iterate through the official ResultData cursor instead.
+    import pandas as pd
+    rows = []
+    while rs.next():
+        rows.append(rs.get_row_data())
+    fields = list(rs.fields)
+    if not fields:
+        raise RuntimeError(f"{label}: empty schema")
+    return pd.DataFrame(rows, columns=fields)
 
 
 def probe(client=bs, clock=None):
