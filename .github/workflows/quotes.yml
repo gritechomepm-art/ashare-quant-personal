@@ -1,15 +1,13 @@
-name: AShare Tencent watchlist quote snapshots
+name: AShare full-market quote snapshots
 on:
   push:
     branches: [main]
     paths:
       - '.github/workflows/quotes.yml'
       - 'scripts/update_quotes.py'
-      - 'data/watchlist_public.json'
+      - 'scripts/core.py'
       - 'tests/test_quotes.py'
   schedule:
-    # Best-effort snapshots during A-share sessions (UTC+8).
-    # GitHub cron can be delayed or skipped; it is not a real-time feed.
     - cron: '32,37,42,47,52,57 1 * * 1-5'
     - cron: '2,7,12,17,22,27,32,37,42,47,52,57 2 * * 1-5'
     - cron: '2,7,12,17,22,27 3 * * 1-5'
@@ -23,17 +21,17 @@ concurrency:
 jobs:
   intraday:
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - name: Test quote parser
-        run: |
-          python -m pip install pytest
-          pytest -q tests/test_quotes.py
-      - name: Check whether this is a trading-session cron
+          python-version: '3.11'
+      - name: Install quote dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Validate quote normalization
+        run: pytest -q tests/test_quotes.py
+      - name: Check market session
         id: clock
         shell: bash
         run: |
@@ -41,7 +39,7 @@ jobs:
           import os
           from datetime import datetime
           from zoneinfo import ZoneInfo
-          if os.environ.get("GITHUB_EVENT_NAME") != "schedule":
+          if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch":
               print("run=true")
           else:
               t = datetime.now(ZoneInfo("Asia/Shanghai"))
@@ -49,10 +47,10 @@ jobs:
               ok = t.weekday() < 5 and (570 <= m <= 690 or 780 <= m <= 900)
               print("run=" + str(ok).lower())
           PY
-      - name: Fetch Tencent quote snapshot for public watchlist
+      - name: Fetch complete A-share market snapshot
         if: steps.clock.outputs.run == 'true'
         run: python scripts/update_quotes.py --output /tmp/ashare-latest-quotes.json
-      - name: Publish isolated quote-feed branch (one rolling commit)
+      - name: Publish rolling public quote-feed snapshot
         if: steps.clock.outputs.run == 'true'
         shell: bash
         run: |
@@ -65,14 +63,18 @@ jobs:
             mkdir -p data
             cp /tmp/ashare-latest-quotes.json data/quotes.json
             git add data/quotes.json
-            git commit --amend --no-edit
-            git push --force-with-lease origin HEAD:quote-feed
+            if ! git diff --cached --quiet; then
+              git commit --amend --no-edit
+              git push --force-with-lease origin HEAD:quote-feed
+            else
+              echo 'Snapshot unchanged; no commit needed.'
+            fi
           else
             git checkout --orphan quote-feed
             git rm -r --cached . >/dev/null 2>&1 || true
             mkdir -p data
             cp /tmp/ashare-latest-quotes.json data/quotes.json
             git add data/quotes.json
-            git commit -m 'data: latest Tencent watchlist quote snapshot'
+            git commit -m 'data: full-market A-share quote snapshot'
             git push origin HEAD:quote-feed
           fi

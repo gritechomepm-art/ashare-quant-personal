@@ -1,7 +1,7 @@
 from pathlib import Path
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from core import norm_spot,norm_hist,append_bar_from_quote,make_screen,atomic_json
+from core import norm_spot,norm_hist,append_bar_from_quote,make_screen,atomic_json,normalize_stock_master
 import pandas as pd
 import pytest
 
@@ -61,3 +61,15 @@ def test_quotes_workflow_no_pages_artifact():
     assert 'deploy-pages@' not in quotes
     shell=(src/'index.html').read_text()
     assert 'raw.githubusercontent.com' in shell
+
+
+def test_full_stock_master_contains_exchange_and_names():
+    frame = pd.DataFrame([
+        {"code": "sz.000708", "code_name": "中信特钢"},
+        {"code": "sz.002600", "code_name": "领益智造"},
+        {"code": "sh.600000", "code_name": "浦发银行"},
+    ] * 500)
+    master = normalize_stock_master(frame, "2026-11-11")
+    assert master["count"] == 3
+    assert master["stocks"]["000708"]["name"] == "中信特钢"
+    assert master["stocks"]["600000"]["market"] == "SH"

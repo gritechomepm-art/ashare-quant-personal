@@ -55,6 +55,29 @@ def norm_spot(frame,fetched=None):
             'timing_note':'Collection time only, NOT exchange tick time. May be delayed.',
             'market_timezone':'Asia/Shanghai','count':len(quotes),'quotes':quotes}
 
+def normalize_stock_master(frame, asof):
+    """Normalize BaoStock's full A-share universe into a public code/name index."""
+    required = {"code", "code_name"}
+    if not required.issubset(frame.columns):
+        raise ValueError("BaoStock stock master missing required columns")
+    stocks = {}
+    for symbol, raw_name in frame[["code", "code_name"]].itertuples(index=False, name=None):
+        symbol, name = str(symbol).strip(), str(raw_name).strip()
+        if len(symbol) != 9 or symbol[2] != "." or not symbol[3:].isdigit():
+            continue
+        market, code = symbol[:2], symbol[3:]
+        if market == "sh" and not code.startswith("6"):
+            continue
+        if market == "sz" and not code.startswith(("0", "3")):
+            continue
+        if market == "bj" and not code.startswith(("4", "8")):
+            continue
+        stocks[code] = {"name": name, "market": market.upper(), "symbol": symbol}
+    if len(stocks) < 1200:
+        raise ValueError(f"Incomplete A-share stock master: {len(stocks)}")
+    return {"schema": 1, "source": "BaoStock query_all_stock", "asof": asof,
+            "count": len(stocks), "stocks": stocks}
+
 def norm_hist(frame,code,asof=None):
     cols={'日期':'date','开盘':'open','最高':'high','最低':'low','收盘':'close','成交量':'volume'}
     data=frame.rename(columns=cols)

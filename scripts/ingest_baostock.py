@@ -6,7 +6,7 @@ from pathlib import Path
 
 import baostock as bs
 
-from core import ROOT, atomic_json, load_json, now_cst, score_history
+from core import ROOT, atomic_json, load_json, now_cst, score_history, normalize_stock_master
 from probe_baostock import checked_frame
 
 FIELDS = "date,code,open,high,low,close,volume,amount,tradestatus,isST"
@@ -47,7 +47,7 @@ def normalize_history(frame, code, name, day):
             "last_amount_cny": amounts[day]}
 
 
-def collect(root=ROOT, max_new=80, max_seconds=700):
+def collect(root=ROOT, max_new=300, max_seconds=1000):
     root = Path(root)
     now = now_cst()
     cutoff = now.date() if (now.hour, now.minute) >= (17, 30) else now.date() - timedelta(days=1)
@@ -68,6 +68,8 @@ def collect(root=ROOT, max_new=80, max_seconds=700):
         universe = checked_frame(bs.query_all_stock(day=asof), "stock universe")
         if not {"code", "code_name", "tradeStatus"}.issubset(universe.columns):
             raise ValueError("Incomplete BaoStock universe columns")
+        master = normalize_stock_master(universe, asof)
+        atomic_json(root / "stocks.json", master)
         names = {str(r.code): str(r.code_name) for r in universe.itertuples(index=False)
                  if is_share(str(r.code))}
         if len(names) < 1200:
@@ -79,11 +81,22 @@ def collect(root=ROOT, max_new=80, max_seconds=700):
         path = root/"history"
         path.mkdir(parents=True, exist_ok=True)
         checked = 0
+        missing = []
+        stale = []
         for full, name in active:
             code = full[3:]
             cached = load_json(path/f"{code}.json", {})
-            if cached.get("source") == "BaoStock query_history_k_data_plus" and cached.get("asof") == asof:
+            bars = cached.get("bars", [])
+            if len(bars) >= 65 and cached.get("asof") == asof:
                 continue
+            if len(bars) >= 65:
+                stale.append((full, name))
+            else:
+                missing.append((full, name))
+        # Fill never-downloaded symbols first; refresh stale histories only after
+        # initial universe coverage. Prevents restarting at the first codes daily.
+        for full, name in missing + stale:
+            code = full[3:]
             if successes >= max_new or checked >= max_new*3 or time.monotonic()-clock > max_seconds:
                 break
             checked += 1
@@ -141,7 +154,7 @@ def collect(root=ROOT, max_new=80, max_seconds=700):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--max-new", type=int, default=80)
-    parser.add_argument("--max-seconds", type=int, default=700)
+    parser.add_argument("--max-new", type=int, default=300)
+    parser.add_argument("--max-seconds", type=int, default=1000)
     args = parser.parse_args()
     collect(max_new=args.max_new, max_seconds=args.max_seconds)
