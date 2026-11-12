@@ -110,7 +110,7 @@ function liveBuyState(row){
  if(price>high)return {status:'NO_CHASE',label:'高于观察区间，不追高',price};
  if(!(price>Number(row.ma5)&&Number(row.ma5)>Number(row.ma10)))return {status:'WAIT',label:'盘中均线未确认',price};
  const fraction=elapsedSessionFraction();
- if(fraction<.15)return {status:'WAIT',label:'开盘前30分钟，量能确认中',price};
+ if(fraction<.125)return {status:'WAIT',label:'开盘前30分钟，量能确认中',price};
  const avg=Number(row.avg_volume5),volume=Number(q.volume_lots)*100;
  if(!(avg>0&&volume>=0))return {status:'WAIT',label:'缺少成交量基准',price};
  const relativeVolume=volume/(avg*fraction);
@@ -145,7 +145,7 @@ function renderLivePanel(){
  $('liveBuyCount').textContent=live?buyAlerts.length+'只':'—';
  $('liveBuySignals').innerHTML=!live
   ?'<div class="fine">非交易时段、行情过期或未取得有效报价。盘中时段为北京时间 09:30–11:30、13:00–15:00；行情快照约5分钟采集一次，不是逐笔行情。</div>'
-  :buyAlerts.length?buyAlerts.map(x=>'<div class="live-alert"><div class="live-alert-main"><div class="live-alert-title">'+escapeHTML(x.row.name)+' <span class="tag good">盘中买入预警</span></div><div class="live-alert-meta">'+x.row.code+' · 量比 '+fmt(x.state.relativeVolume,2)+' · 区间 '+fmt(x.row.buy_low)+'–'+fmt(x.row.buy_high)+' 元</div></div><div class="live-alert-price">'+fmt(x.state.price)+'元<button class="btn small" data-detail="'+x.row.code+'" style="display:block;margin-top:5px">分析</button></div></div>').join('')
+  :buyAlerts.length?buyAlerts.map(x=>'<div class="live-alert"><div class="live-alert-main"><div class="live-alert-title">'+escapeHTML(x.row.name)+' <span class="tag good">盘中买入预警</span></div><div class="live-alert-meta">'+x.row.code+' · 时段量比 '+fmt(x.state.relativeVolume,2)+' · 区间 '+fmt(x.row.buy_low)+'–'+fmt(x.row.buy_high)+' 元</div></div><div class="live-alert-price">'+fmt(x.state.price)+'元<button class="btn small" data-detail="'+x.row.code+'" style="display:block;margin-top:5px">分析</button></div></div>').join('')
   :'<div class="fine">当前没有股票同时满足日线买入条件、盘中价格区间、均线和成交量确认。</div>';
  const sellAlerts=liveSellAlerts.filter(x=>x.live);
  $('liveSellCount').textContent=live?sellAlerts.length+'只':'—';
@@ -355,7 +355,7 @@ async function analyze(input){
   const quoteChange=hasRecentQuote(quote)?signed(Number(quote.change_pct))+'%':'—';
   const liveBox='<div class="signal-box"><strong>盘中行情与信号：'+liveTag+'</strong>'+
    '<div class="signal-levels"><div><small>最新可用价格</small><b>'+quotePrice+'</b></div><div><small>快照涨跌幅</small><b>'+quoteChange+'</b></div><div><small>收盘买入观察区间</small><b>'+fmt(plan.buyLow)+'–'+fmt(plan.buyHigh)+'</b></div><div><small>快照时间</small><b>'+(quote?escapeHTML(quote.quote_time||market.fetched_at||'未知'):'暂无')+'</b></div></div>'+
-   '<p class="fine" style="margin:8px 0 0">'+(live?escapeHTML(liveState.label)+'。盘中信号是预警，不是自动委托。':'当前不是有效盘中报价；非交易时段或快照超过15分钟时，不生成盘中买卖预警。')+'</p></div>';
+   '<p class="fine" style="margin:8px 0 0">'+(live?escapeHTML(liveState.label)+(Number.isFinite(liveState.relativeVolume)?' · 时段量比 '+fmt(liveState.relativeVolume,2):'')+'。盘中信号是预警，不是自动委托。':'当前不是有效盘中报价；非交易时段或快照超过15分钟时，不生成盘中买卖预警。')+'</p></div>';
   const planBox='<div class="signal-box"><strong>收盘买入策略：'+signalTag+'</strong><div class="fine">'+escapeHTML(reasonText)+'</div>'+
    '<div class="signal-levels"><div><small>参考观察区间</small><b>'+fmt(plan.buyLow)+'–'+fmt(plan.buyHigh)+'</b></div><div><small>参考止损线</small><b>'+fmt(plan.stop)+'</b></div><div><small>参考止盈线</small><b>'+fmt(plan.target)+'</b></div><div><small>信号有效期</small><b>下一交易日</b></div></div>'+
    '<p class="fine" style="margin:8px 0 0">以上价格以最新完整收盘价和ATR计算，不是自动委托价；若次日高开超出观察区间，不追涨。</p></div>';
