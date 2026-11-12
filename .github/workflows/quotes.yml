@@ -5,7 +5,6 @@ on:
     paths:
       - '.github/workflows/quotes.yml'
       - 'scripts/update_quotes.py'
-      - 'scripts/core.py'
       - 'data/stocks.json'
   schedule:
     - cron: '32,37,42,47,52,57 1 * * 1-5'
@@ -41,13 +40,13 @@ jobs:
           import os
           from datetime import datetime
           from zoneinfo import ZoneInfo
-          if os.environ.get("GITHUB_EVENT_NAME") != "schedule":
-              print("run=true")
-          else:
-              t = datetime.now(ZoneInfo("Asia/Shanghai"))
-              m = t.hour * 60 + t.minute
-              ok = t.weekday() < 5 and (570 <= m <= 690 or 780 <= m <= 915)
-              print("run=" + str(ok).lower())
+          # Run only during the A-share session (plus the 15:07 close snapshot).
+          # Pushes and manual dispatches outside these windows must not publish
+          # stale/pre-market quotes as if they were live.
+          t = datetime.now(ZoneInfo("Asia/Shanghai"))
+          m = t.hour * 60 + t.minute
+          ok = t.weekday() < 5 and (570 <= m <= 690 or 780 <= m <= 915)
+          print("run=" + str(ok).lower())
           PY
       - name: Fetch complete A-share market snapshot
         if: steps.clock.outputs.run == 'true'
