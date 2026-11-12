@@ -7,7 +7,7 @@ def main():
     site=BASE/'site'
     if site.exists():shutil.rmtree(site)
     site.mkdir()
-    for file in ['index.html','manifest.webmanifest','sw.js']:
+    for file in ['index.html','manifest.webmanifest','sw.js','realtime-config.js']:
         shutil.copy2(BASE/file,site/file)
     (site/'assets').mkdir()
     shutil.copy2(BASE/'assets'/'icon.svg',site/'assets'/'icon.svg')
