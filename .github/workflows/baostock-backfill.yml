@@ -46,8 +46,14 @@ jobs:
           if git ls-remote --exit-code --heads origin quote-feed >/dev/null 2>&1; then
             git fetch --depth=1 origin quote-feed
             git show FETCH_HEAD:data/quotes.json > /tmp/ashare-quote-feed.json
+            if git cat-file -e FETCH_HEAD:data/intraday_signal_events.json 2>/dev/null; then
+              git show FETCH_HEAD:data/intraday_signal_events.json > /tmp/ashare-intraday-events.json
+            else
+              echo '{"schema":1,"events":[]}' > /tmp/ashare-intraday-events.json
+            fi
           else
             echo '{"schema":1,"status":"uninitialized","quotes":{}}' > /tmp/ashare-quote-feed.json
+            echo '{"schema":1,"events":[]}' > /tmp/ashare-intraday-events.json
           fi
       - name: Bootstrap history and update cached bars from verified close quotes
         shell: bash
@@ -69,7 +75,8 @@ jobs:
           snapshot="$RUNNER_TEMP/ashare-new-data"
           mkdir -p "$snapshot/history"
           cp -a data/history/. "$snapshot/history/"
-          cp data/stocks.json data/screen.json data/baostock_status.json data/signal_tracker.json "$snapshot/"
+          cp data/stocks.json data/screen.json data/baostock_status.json data/signal_tracker.json data/intraday_signal_events.json "$snapshot/"
+          cp /tmp/ashare-intraday-events.json "$snapshot/intraday_signal_events.json"
           for attempt in 1 2 3; do
             echo "Merge attempt $attempt/3"
             git fetch origin main
@@ -96,7 +103,7 @@ jobs:
                   if new_day < old_day or (new_day == old_day and new_len < old_len):
                       continue
               shutil.copy2(incoming, previous)
-          for filename in ("stocks.json", "screen.json", "baostock_status.json", "signal_tracker.json"):
+          for filename in ("stocks.json", "screen.json", "baostock_status.json", "signal_tracker.json", "intraday_signal_events.json"):
               incoming = snap / filename
               previous = dest / filename
               if not previous.exists():
@@ -106,6 +113,12 @@ jobs:
               candidate = json.loads(incoming.read_text(encoding="utf-8"))
               current_day = str(current.get("asof", ""))
               candidate_day = str(candidate.get("asof", ""))
+              if filename == "intraday_signal_events.json":
+                  current_count = len(current.get("events", []))
+                  candidate_count = len(candidate.get("events", []))
+                  if candidate_count >= current_count:
+                      shutil.copy2(incoming, previous)
+                  continue
               if filename == "stocks.json":
                   current_count = int(current.get("count", 0))
                   candidate_count = int(candidate.get("count", 0))
