@@ -396,6 +396,12 @@ def build_tracker(root=ROOT, lookback_sessions=180):
         code = str(raw.get("code", ""))
         signal_date = str(raw.get("signal_date", ""))[:10]
         reference = raw.get("reference_price")
+        if code not in history_maps:
+            extra_history = load_json(root / "history" / (code + ".json"), {}) or {}
+            extra_bars = extra_history.get("bars", [])
+            if len(extra_bars) >= 65:
+                bars_by_code[code] = extra_bars
+                history_maps[code] = {str(bar["date"])[:10]: bar for bar in extra_bars}
         if code not in history_maps or not _finite(reference) or float(reference) <= 0:
             continue
         if raw.get("id") in known_ids:
