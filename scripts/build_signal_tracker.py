@@ -534,7 +534,7 @@ def build_tracker(root=ROOT, lookback_sessions=180):
     ]
     return {
         "schema": 1,
-        "status": "ready" if tracked else "uninitialized",
+        "status": "ready" if tracked or events else "uninitialized",
         "source": "BaoStock daily bars + Tencent intraday quote-feed; close-confirm and intraday-warning cohorts",
         "intraday_event_count": sum(event.get("signal_type") == "INTRADAY_WARNING" for event in events),
         "asof": asof,
