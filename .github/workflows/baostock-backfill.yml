@@ -46,7 +46,14 @@ jobs:
             echo '{"schema":1,"status":"uninitialized","quotes":{}}' > /tmp/ashare-quote-feed.json
           fi
       - name: Bootstrap history and update cached bars from verified close quotes
-        run: python scripts/ingest_baostock.py --quotes-file /tmp/ashare-quote-feed.json --max-new 300 --max-seconds 1000
+        shell: bash
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            # Fast QA run for newly prioritized stocks; normal scheduled run fills 300.
+            python scripts/ingest_baostock.py --quotes-file /tmp/ashare-quote-feed.json --max-new 15 --max-seconds 180
+          else
+            python scripts/ingest_baostock.py --quotes-file /tmp/ashare-quote-feed.json --max-new 300 --max-seconds 1000
+          fi
       - name: Merge generated public data onto latest main (no rebase conflict)
         shell: bash
         run: |
