@@ -172,8 +172,24 @@ function entrySignalJS(a){
   stop:p.close-1.5*atr,target:p.close+2*atr,validSessions:1};
 }
 function graph(a){const xs=a.slice(-90),w=350,h=185,l=12,r=12,top=12,bottom=16,min=Math.min(...xs.map(x=>x.low))*.995,max=Math.max(...xs.map(x=>x.high))*1.005;const X=i=>l+(w-l-r)*i/Math.max(1,xs.length-1),Y=p=>h-bottom-(p-min)/(max-min||1)*(h-bottom-top);const line=k=>xs.map((x,i)=>(Number.isFinite(x[k])?`${i?'L':'M'}${X(i).toFixed(1)},${Y(x[k]).toFixed(1)}`:'' )).join(' ');return `<div class="linechart"><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="历史价格走势图"><g stroke="#e9e4dc" stroke-width="1">${[0,1,2,3].map(i=>`<line x1="${l}" x2="${w-r}" y1="${25+i*43}" y2="${25+i*43}"/>`).join('')}</g><path d="${line('close')}" fill="none" stroke="#b77049" stroke-width="2.4"/><path d="${line('ma5')}" fill="none" stroke="#388875" stroke-width="1.6"/><path d="${line('ma10')}" fill="none" stroke="#a6a6a0" stroke-width="1.4" stroke-dasharray="5 4"/></svg><div class="barline fine"><span>${xs[0].date}</span><span>${xs.at(-1).date}</span></div><div class="fine" style="margin-top:7px">🟠 收盘价　<span style="color:var(--jade)">━━</span> MA5　┄ MA10（不复权）</div></div>`}
-async function analyze(code){if(!validCode(code))return toast('请输入正确的6位股票代码');$('detailCode').value=code;$('btCode').value=code;setTab('detail');$('detailContent').className='empty';$('detailContent').innerHTML='<b>读取历史数据…</b>';try{let item=await loadHistory(code),a=enrichJS(item.bars),last=a.at(-1),quote=market.quotes?.[code],s=(screen.rows||[]).find(x=>x.code===code);const st=freshness();$('detailContent').className='';$('detailContent').innerHTML=`<div class="barline"><div><div class="readonly">${escapeHTML(quote?.name||s?.name||code)} · ${code}</div><div style="font-size:26px;font-weight:800;margin:5px 0">${fmt(last.close)} <small style="font-size:12px;color:var(--muted)">元 · 历史收盘</small></div><div class="fine">日线截至 ${last.date} · ${escapeHTML(item.adjust==='none'?'不复权':'数据源复权未知')}</div></div><span class="tag ${s?.signal?'good':''}">${s? s.signal?'次日观察':'没有观察信号':'无云端评分'}</span></div><div class="metric-grid"><div class="metric"><small>日线MA5</small><strong>${fmt(last.ma5)}</strong></div><div class="metric"><small>日线MA10</small><strong>${fmt(last.ma10)}</strong></div><div class="metric"><small>ATR14</small><strong>${fmt(last.atr14,3)}</strong></div><div class="metric"><small>量化评分（Python）</small><strong>${s?.score??'—'}<small style="display:inline;font-size:10px"> /100</small></strong></div></div>${graph(a)}<div class="market-notice">${quote?`采集行情：${fmt(quote.price)}元（${signed(quote.change_pct)}%，采集时间 ${escapeHTML(market.fetched_at||'未知')}，${escapeHTML(st.label)}）`:'没有盘中快照；不可推算最新市价。'}</div><p class="hint">折线指标仅用于历史走势展示；收盘观察信号与评分由Python引擎盘后产生。历史价格为不复权口径，除权、停牌、涨跌停等需另外核实。</p>`;
- }catch(e){renderHistoryPending(code,e);}}
+async function analyze(code){
+ if(!validCode(code))return toast('请输入正确的6位股票代码');
+ $('detailCode').value=code;$('btCode').value=code;setTab('detail');
+ $('detailContent').className='empty';$('detailContent').innerHTML='<b>读取历史数据…</b>';
+ try{
+  const item=await loadHistory(code),a=enrichJS(item.bars),last=a.at(-1),quote=market.quotes?.[code],row=(screen.rows||[]).find(x=>x.code===code);
+  const st=freshness(),plan=entrySignalJS(a);
+  const signalTag=plan.buy?'<span class="tag good">BUY WATCH · 次日观察</span>':'<span class="tag caution">WAIT · 暂不买入</span>';
+  const reasonText=plan.buy?'全部5项买入条件通过。次日仅在价格没有明显跳空、行情有效且成交条件允许时复核。':'未通过：'+plan.failed.join('；');
+  const planBox='<div class="signal-box"><strong>短线买入信号：'+signalTag+'</strong><div class="fine">'+escapeHTML(reasonText)+'</div>'+
+   '<div class="signal-levels"><div><small>参考观察区间</small><b>'+fmt(plan.buyLow)+'–'+fmt(plan.buyHigh)+'</b></div><div><small>参考止损线</small><b>'+fmt(plan.stop)+'</b></div><div><small>参考止盈线</small><b>'+fmt(plan.target)+'</b></div><div><small>信号有效期</small><b>下一交易日</b></div></div>'+
+   '<p class="fine" style="margin:8px 0 0">以上价格以最新完整收盘价和ATR计算，不是自动委托价；若次日高开超出观察区间，不追涨。策略尚需持续回测。</p></div>';
+  $('detailContent').className='';
+  $('detailContent').innerHTML='<div class="barline"><div><div class="readonly">'+escapeHTML(quote?.name||row?.name||stockMaster[code]?.name||code)+' · '+code+'</div><div style="font-size:26px;font-weight:800;margin:5px 0">'+fmt(last.close)+' <small style="font-size:12px;color:var(--muted)">元 · 历史收盘</small></div><div class="fine">日线截至 '+last.date+' · '+(item.adjust==='none'?'不复权':'数据源复权未知')+'</div></div>'+signalTag+'</div>'+
+   '<div class="metric-grid"><div class="metric"><small>日线MA5</small><strong>'+fmt(last.ma5)+'</strong></div><div class="metric"><small>日线MA10</small><strong>'+fmt(last.ma10)+'</strong></div><div class="metric"><small>RSI14</small><strong>'+fmt(last.rsi14,1)+'</strong></div><div class="metric"><small>ATR14</small><strong>'+fmt(last.atr14,3)+'</strong></div></div>'+
+   planBox+graph(a)+'<div class="market-notice">'+(quote?'采集行情：'+fmt(quote.price)+'元（'+signed(quote.change_pct)+'%，采集时间 '+escapeHTML(market.fetched_at||'未知')+'，'+escapeHTML(st.label)+'）':'没有盘中快照；不可推算最新市价。')+'</div><p class="hint">买入观察信号由MA5/MA10、成交量、RSI、20日高点和ATR共同判断。信号在收盘后生成，仅供下一交易日复核。历史价格为不复权口径。</p>';
+ }catch(e){renderHistoryPending(code,e);}
+}
 function renderHistoryPending(code,err){
  const meta=stockMaster[code]||{},q=market.quotes?.[code];
  const name=escapeHTML(q?.name||meta.name||code);
