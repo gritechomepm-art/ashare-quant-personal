@@ -34,6 +34,63 @@ def _finite(value):
         return False
 
 
+
+def forward_observations(bars, signal_index, reference_price):
+    """Observed forward CLOSE performance, independent of hypothetical trade fills.
+
+    Horizon 1 is the next available session after the SIGNAL date, even if a
+    hypothetical order never fills. Non-trading days are not included.
+    """
+    result = {}
+    if not _finite(reference_price) or float(reference_price) <= 0:
+        return {str(h): {"status": "INVALID"} for h in HORIZONS}
+    for h in HORIZONS:
+        k = signal_index + h
+        if k >= len(bars):
+            result[str(h)] = {"status": "PENDING", "reason": "等待第%d个后续交易日收盘" % h}
+            continue
+        bar = bars.iloc[k] if hasattr(bars, "iloc") else bars[k]
+        close = float(bar["close"])
+        if not _finite(close) or close <= 0:
+            result[str(h)] = {"status": "INVALID", "reason": "没有有效收盘价"}
+            continue
+        result[str(h)] = {
+            "status": "COMPLETE",
+            "observation_date": str(bar["date"])[:10],
+            "close": round(close, 3),
+            "return_pct": round(100 * (close / float(reference_price) - 1), 3),
+            "basis": "signal_reference_to_future_close_no_fees",
+        }
+    return result
+
+
+def summarize_forward(events, horizon):
+    """Separate observed results from T+1 hypothetical-trade performance."""
+    selected = sorted(events, key=lambda e: (
+        e.get("signal_date", ""), e.get("signal_time", ""), e.get("code", "")))
+    complete = [e["forward_outcomes"][str(horizon)] for e in selected
+                if e.get("forward_outcomes", {}).get(str(horizon), {}).get("status") == "COMPLETE"]
+    returns = [float(x["return_pct"]) for x in complete]
+    wins = [x for x in returns if x > 0]
+    losses = [x for x in returns if x < 0]
+    max_streak = streak = 0
+    for value in returns:
+        streak = streak + 1 if value < 0 else 0
+        max_streak = max(streak, max_streak)
+    return {
+        "signal_count": len(selected),
+        "completed_count": len(complete),
+        "pending_count": sum(e.get("forward_outcomes", {}).get(str(horizon), {}).get("status") == "PENDING" for e in selected),
+        "win_rate_pct": round(len(wins) / len(returns) * 100, 2) if returns else None,
+        "average_return_pct": round(sum(returns) / len(returns), 3) if returns else None,
+        "average_profit_pct": round(sum(wins) / len(wins), 3) if wins else None,
+        "average_loss_pct": round(sum(losses) / len(losses), 3) if losses else None,
+        "max_consecutive_losses": max_streak,
+        "basis": "future_close_vs_signal_reference_price_without_fees",
+        "note": "原始信号观察收益，不代表可成交回报。连续亏损是按日期/代码排序的事件序列，不是账户连续亏损。",
+    }
+
+
 def signal_events(code, name, bars, lookback_sessions=180):
     """Return every BUY_WATCH event in the trailing window and its 1/2/3-day outcomes."""
     if not isinstance(bars, list) or len(bars) < 65:
@@ -79,7 +136,10 @@ def signal_events(code, name, bars, lookback_sessions=180):
         buy_high = signal_close + 0.25 * atr_value
 
         event = {
-            "id": code + "|" + signal_date,
+            "id": "CLOSE_CONFIRM|" + code + "|" + signal_date,
+            "signal_type": "CLOSE_CONFIRM",
+            "signal_label": "收盘确认",
+            "reference_price": round(signal_close, 3),
             "code": code,
             "name": name,
             "signal_date": signal_date,
@@ -94,6 +154,7 @@ def signal_events(code, name, bars, lookback_sessions=180):
             "entry_date": None,
             "entry_price": None,
             "outcomes": {},
+            "forward_outcomes": forward_observations(x, i, signal_close),
         }
 
         entry_i = i + 1
@@ -208,7 +269,7 @@ def simulate_portfolio(events, bars_by_code, horizon, initial_capital=1_000_000.
     }
     candidates_by_date = {}
     for event in events:
-        if event.get("entry_status") != "ENTERED":
+        if event.get("entry_status") != "ENTERED" or event.get("signal_type", "CLOSE_CONFIRM") != "CLOSE_CONFIRM":
             continue
         entry_date = event.get("entry_date")
         if not entry_date or entry_date not in bar_maps.get(event["code"], {}):
@@ -380,8 +441,92 @@ def build_tracker(root=ROOT, lookback_sessions=180):
         name = str(row.get("name") or master.get("stocks", {}).get(code, {}).get("name") or code)
         events.extend(signal_events(code, name, bars, lookback_sessions))
 
-    events.sort(key=lambda event: (event["signal_date"], event["code"]))
-    metrics = {str(h): summarize_horizon(events, h) for h in HORIZONS}
+    # Merge durable intraday warning events captured by the five-minute quote workflow.
+    intraday_path = root / "intraday_signal_events.json"
+    intraday_payload = load_json(intraday_path, {}) or {}
+    intraday_events = intraday_payload.get("events", []) if isinstance(intraday_payload, dict) else []
+    history_maps = {
+        code: {str(bar["date"])[:10]: bar for bar in bars}
+        for code, bars in bars_by_code.items()
+    }
+    known_ids = {event.get("id") for event in events}
+    # Preserve previously observed close-confirm signals even after the rolling
+    # historical lookback/window or screen membership changes. No future data
+    # is invented when archived bars are no longer available.
+    previous_payload = load_json(root / "signal_tracker.json", {}) or {}
+    for old in previous_payload.get("events", []):
+        if old.get("signal_type", "CLOSE_CONFIRM") != "CLOSE_CONFIRM":
+            continue
+        code = str(old.get("code", ""))
+        signal_date = str(old.get("signal_date", ""))[:10]
+        if len(code) != 6 or not signal_date or signal_date > asof:
+            continue
+        event_id = "CLOSE_CONFIRM|" + code + "|" + signal_date
+        if event_id in known_ids:
+            continue
+        archived = dict(old)
+        archived["id"] = event_id
+        archived["signal_type"] = "CLOSE_CONFIRM"
+        archived["signal_label"] = "收盘确认"
+        archived["reference_price"] = archived.get("reference_price", archived.get("signal_close"))
+        if not archived.get("forward_outcomes"):
+            hist = load_json(root / "history" / (code + ".json"), {}) or {}
+            bars = hist.get("bars", [])
+            dates = [str(bar["date"])[:10] for bar in bars]
+            if signal_date in dates:
+                archived["forward_outcomes"] = forward_observations(
+                    bars, dates.index(signal_date), archived["reference_price"])
+            else:
+                archived["forward_outcomes"] = {
+                    str(h): {"status": "UNAVAILABLE", "reason": "对应历史日线已不在缓存中"}
+                    for h in HORIZONS
+                }
+        events.append(archived)
+        known_ids.add(event_id)
+    for raw in intraday_events:
+        code = str(raw.get("code", ""))
+        signal_date = str(raw.get("signal_date", ""))[:10]
+        reference = raw.get("reference_price")
+        if code not in history_maps:
+            extra_history = load_json(root / "history" / (code + ".json"), {}) or {}
+            extra_bars = extra_history.get("bars", [])
+            if len(extra_bars) >= 65:
+                bars_by_code[code] = extra_bars
+                history_maps[code] = {str(bar["date"])[:10]: bar for bar in extra_bars}
+        if code not in history_maps or not _finite(reference) or float(reference) <= 0:
+            continue
+        if raw.get("id") in known_ids:
+            continue
+        bars = bars_by_code[code]
+        dates = [str(bar["date"])[:10] for bar in bars]
+        if signal_date not in dates:
+            continue
+        signal_index = dates.index(signal_date)
+        event = dict(raw)
+        event.update({
+            "signal_type": "INTRADAY_WARNING",
+            "signal_label": "盘中预警",
+            "reference_price": round(float(reference), 3),
+            "signal_close": round(float(reference), 3),
+            "entry_status": "RECORDED_INTRADAY",
+            "entry_date": None,
+            "entry_price": None,
+            "entry_reason": "仅记录盘中预警发生时的参考价，并非买入成交",
+            "outcomes": {},
+            "forward_outcomes": forward_observations(bars, signal_index, reference),
+        })
+        events.append(event)
+        known_ids.add(event.get("id"))
+
+    events.sort(key=lambda event: (event["signal_date"], event["code"], event.get("signal_type", "")))
+    close_events = [e for e in events if e.get("signal_type", "CLOSE_CONFIRM") == "CLOSE_CONFIRM"]
+    metrics = {str(h): summarize_horizon(close_events, h) for h in HORIZONS}
+    forward_metrics = {
+        kind: {str(h): summarize_forward(
+            [e for e in events if e.get("signal_type") == kind], h)
+            for h in HORIZONS}
+        for kind in ("INTRADAY_WARNING", "CLOSE_CONFIRM")
+    }
     portfolio = {str(h): simulate_portfolio(events, bars_by_code, h) for h in HORIZONS}
     first_dates = [
         event["signal_date"] for event in events
@@ -389,8 +534,9 @@ def build_tracker(root=ROOT, lookback_sessions=180):
     ]
     return {
         "schema": 1,
-        "status": "ready" if tracked else "uninitialized",
-        "source": "BaoStock unadjusted daily bars + quant_v1.evaluate_entry_signal equivalent",
+        "status": "ready" if tracked or events else "uninitialized",
+        "source": "BaoStock daily bars + Tencent intraday quote-feed; close-confirm and intraday-warning cohorts",
+        "intraday_event_count": sum(event.get("signal_type") == "INTRADAY_WARNING" for event in events),
         "asof": asof,
         "generated_at": now_cst().isoformat(timespec="seconds"),
         "lookback_sessions": int(lookback_sessions),
@@ -408,12 +554,16 @@ def build_tracker(root=ROOT, lookback_sessions=180):
         },
         "signal_count": len(events),
         "metrics": metrics,
+        "forward_metrics": forward_metrics,
         "portfolio": portfolio,
         "events": events[-20000:],
+        "retained_event_count": min(len(events), 20000),
+        "event_retention_note": "当前页面仅保留最新20000条事件；历史回溯窗口180日，不保证完整上市以来数据。",
         "warning": [
             "当前统计只覆盖本次已成功获取且截至最新收盘日的股票，不代表完整历史A股成分股。",
             "使用当前股票池回溯历史信号，未包含历史退市股及历史成分变动，存在幸存者偏差。",
-            "独立信号事件统计可能重叠；组合回撤另按100万元初始资金、最多10个持仓、每笔10%权益的组合模拟计算。",
+            "前瞻1/2/3日统计均相对于信号日参考价，不扣费用，不代表可以按该价成交。盘中与收盘分组独立统计。",
+            "独立信号事件统计可能重叠；组合回撤另按100万元初始资金、最多10个持仓、每笔10%权益的收盘确认模拟计算。",
             "统计按信号收盘价3–100元过滤；组合按固定持有期退出，不包含止损止盈；使用不复权日线和固定费用/滑点假设，未模拟停牌、涨跌停、分红除权及真实成交队列。",
         ],
     }

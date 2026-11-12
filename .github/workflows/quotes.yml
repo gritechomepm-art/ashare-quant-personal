@@ -7,6 +7,8 @@ on:
     paths:
       - '.github/workflows/quotes.yml'
       - 'scripts/update_quotes.py'
+      - 'scripts/record_intraday_signals.py'
+      - 'tests/test_intraday_signal_recorder.py'
       - 'tests/test_quotes.py'
       - 'data/stocks.json'
   schedule:
@@ -61,6 +63,12 @@ jobs:
             echo "- Beijing time: ${{ steps.clock.outputs.beijing_time }}"
             echo "- Trigger: ${{ github.event_name }}"
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve recorder and close-confirm candidate snapshot before branch switch
+        if: steps.clock.outputs.run == 'true'
+        shell: bash
+        run: |
+          cp scripts/record_intraday_signals.py /tmp/ashare-record-intraday.py
+          cp data/screen.json /tmp/ashare-screen.json
       - name: Fetch complete A-share market snapshot
         if: steps.clock.outputs.run == 'true'
         run: python scripts/update_quotes.py --output /tmp/ashare-latest-quotes.json
@@ -103,7 +111,8 @@ jobs:
             git checkout -B quote-feed refs/remotes/origin/quote-feed
             mkdir -p data
             cp /tmp/ashare-latest-quotes.json data/quotes.json
-            git add data/quotes.json
+            python /tmp/ashare-record-intraday.py --screen /tmp/ashare-screen.json --quotes /tmp/ashare-latest-quotes.json --existing data/intraday_signal_events.json --output data/intraday_signal_events.json
+            git add data/quotes.json data/intraday_signal_events.json
             if ! git diff --cached --quiet; then
               git commit --amend --no-edit
               git push --force-with-lease origin HEAD:quote-feed
@@ -116,7 +125,8 @@ jobs:
             git rm -r --cached . >/dev/null 2>&1 || true
             mkdir -p data
             cp /tmp/ashare-latest-quotes.json data/quotes.json
-            git add data/quotes.json
+            python /tmp/ashare-record-intraday.py --screen /tmp/ashare-screen.json --quotes /tmp/ashare-latest-quotes.json --existing data/intraday_signal_events.json --output data/intraday_signal_events.json
+            git add data/quotes.json data/intraday_signal_events.json
             git commit -m 'data: full-market A-share quote snapshot'
             git push origin HEAD:quote-feed
             echo "- Publication: created quote-feed branch and pushed snapshot" >> "$GITHUB_STEP_SUMMARY"

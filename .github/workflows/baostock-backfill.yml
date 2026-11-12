@@ -6,11 +6,13 @@ on:
       - '.github/workflows/baostock-backfill.yml'
       - 'scripts/ingest_baostock.py'
       - 'scripts/build_signal_tracker.py'
+      - 'scripts/record_intraday_signals.py'
       - 'scripts/core.py'
       - 'quant_v1.py'
       - 'tests/test_core.py'
       - 'tests/test_trade_signals.py'
       - 'tests/test_signal_tracker.py'
+      - 'tests/test_intraday_signal_recorder.py'
   schedule:
     # 18:00 Beijing on trading weekdays; allow BaoStock's completed EOD bars to settle.
     - cron: '0 10 * * 1-5'
@@ -46,8 +48,14 @@ jobs:
           if git ls-remote --exit-code --heads origin quote-feed >/dev/null 2>&1; then
             git fetch --depth=1 origin quote-feed
             git show FETCH_HEAD:data/quotes.json > /tmp/ashare-quote-feed.json
+            if git cat-file -e FETCH_HEAD:data/intraday_signal_events.json 2>/dev/null; then
+              git show FETCH_HEAD:data/intraday_signal_events.json > /tmp/ashare-intraday-events.json
+            else
+              echo '{"schema":1,"events":[]}' > /tmp/ashare-intraday-events.json
+            fi
           else
             echo '{"schema":1,"status":"uninitialized","quotes":{}}' > /tmp/ashare-quote-feed.json
+            echo '{"schema":1,"events":[]}' > /tmp/ashare-intraday-events.json
           fi
       - name: Bootstrap history and update cached bars from verified close quotes
         shell: bash
@@ -58,6 +66,8 @@ jobs:
           else
             python scripts/ingest_baostock.py --quotes-file /tmp/ashare-quote-feed.json --max-new 300 --max-seconds 1000
           fi
+      - name: Merge latest durable intraday ledger before calculating outcomes
+        run: cp /tmp/ashare-intraday-events.json data/intraday_signal_events.json
       - name: Build historical signal outcome tracker
         run: python scripts/build_signal_tracker.py --lookback-sessions 180
       - name: Merge generated public data onto latest main with retry
@@ -96,7 +106,7 @@ jobs:
                   if new_day < old_day or (new_day == old_day and new_len < old_len):
                       continue
               shutil.copy2(incoming, previous)
-          for filename in ("stocks.json", "screen.json", "baostock_status.json", "signal_tracker.json"):
+          for filename in ("stocks.json", "screen.json", "baostock_status.json", "signal_tracker.json", "intraday_signal_events.json"):
               incoming = snap / filename
               previous = dest / filename
               if not previous.exists():
@@ -106,6 +116,12 @@ jobs:
               candidate = json.loads(incoming.read_text(encoding="utf-8"))
               current_day = str(current.get("asof", ""))
               candidate_day = str(candidate.get("asof", ""))
+              if filename == "intraday_signal_events.json":
+                  current_count = len(current.get("events", []))
+                  candidate_count = len(candidate.get("events", []))
+                  if candidate_count >= current_count:
+                      shutil.copy2(incoming, previous)
+                  continue
               if filename == "stocks.json":
                   current_count = int(current.get("count", 0))
                   candidate_count = int(candidate.get("count", 0))
@@ -121,7 +137,7 @@ jobs:
               else:
                   print(f"Keep newer {filename}: {current_day}/{current_count} > {candidate_day}/{candidate_count}")
           PY
-            git add data/history/ data/screen.json data/stocks.json data/baostock_status.json data/signal_tracker.json
+            git add data/history/ data/screen.json data/stocks.json data/baostock_status.json data/signal_tracker.json data/intraday_signal_events.json
             if git diff --cached --quiet; then
               echo "No new public EOD data to commit."
               exit 0
