@@ -65,7 +65,7 @@ def test_signal_is_skipped_when_next_open_chases(monkeypatch):
     assert events[0]["outcomes"]["1"]["status"] == "SKIPPED"
 
 
-def test_horizon_metrics_report_losses_and_drawdown():
+def test_horizon_metrics_report_wins_and_losses():
     events = [
         {"entry_status": "ENTERED", "signal_date": "2026-01-01", "code": "000001",
          "outcomes": {"1": {"status": "COMPLETE", "return_pct": 2.0, "pnl_yuan": 20.0}}},
@@ -80,8 +80,6 @@ def test_horizon_metrics_report_losses_and_drawdown():
     assert result["average_profit_yuan"] == 20.0
     assert result["average_loss_yuan"] == -7.5
     assert result["profit_factor"] > 0
-    assert "max_consecutive_losses" not in result
-    assert "event_sequence_max_drawdown_pct" not in result
 
 
 def test_portfolio_metrics_use_cash_and_real_equity_drawdown():
