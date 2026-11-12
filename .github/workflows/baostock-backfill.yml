@@ -66,6 +66,8 @@ jobs:
           else
             python scripts/ingest_baostock.py --quotes-file /tmp/ashare-quote-feed.json --max-new 300 --max-seconds 1000
           fi
+      - name: Merge latest durable intraday ledger before calculating outcomes
+        run: cp /tmp/ashare-intraday-events.json data/intraday_signal_events.json
       - name: Build historical signal outcome tracker
         run: python scripts/build_signal_tracker.py --lookback-sessions 180
       - name: Merge generated public data onto latest main with retry
@@ -78,7 +80,6 @@ jobs:
           mkdir -p "$snapshot/history"
           cp -a data/history/. "$snapshot/history/"
           cp data/stocks.json data/screen.json data/baostock_status.json data/signal_tracker.json "$snapshot/"
-          cp /tmp/ashare-intraday-events.json "$snapshot/intraday_signal_events.json"
           for attempt in 1 2 3; do
             echo "Merge attempt $attempt/3"
             git fetch origin main
