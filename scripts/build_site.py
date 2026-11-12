@@ -12,7 +12,7 @@ def main():
     (site/'assets').mkdir()
     shutil.copy2(BASE/'assets'/'icon.svg',site/'assets'/'icon.svg')
     data=site/'data';data.mkdir()
-    for file in ['quotes.json','screen.json','stocks.json','baostock_status.json']:
+    for file in ['quotes.json','screen.json','stocks.json','baostock_status.json','signal_tracker.json']:
         source = BASE/'data'/file
         if source.exists():
             shutil.copy2(source, data/file)
