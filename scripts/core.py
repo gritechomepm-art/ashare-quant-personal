@@ -70,7 +70,7 @@ def normalize_stock_master(frame, asof):
             continue
         if market == "sz" and not code.startswith(("0", "3")):
             continue
-        if market == "bj" and not code.startswith(("4", "8")):
+        if market == "bj" and not code.startswith(("4", "8", "9")):
             continue
         stocks[code] = {"name": name, "market": market.upper(), "symbol": symbol}
     if len(stocks) < 1200:

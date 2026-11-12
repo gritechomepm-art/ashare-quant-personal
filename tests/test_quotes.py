@@ -26,6 +26,7 @@ def test_market_symbol():
     assert market_symbol("002600") == "sz002600"
     assert market_symbol("600519") == "sh600519"
     assert market_symbol("430047") == "bj430047"
+    assert market_symbol("920001") == "bj920001"
 
 
 def test_parse_tencent_quotes():

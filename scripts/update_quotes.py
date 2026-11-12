@@ -22,7 +22,7 @@ def market_symbol(code):
         return "sh" + code
     if code.startswith(("0", "3")):
         return "sz" + code
-    if code.startswith(("4", "8")):
+    if code.startswith(("4", "8", "92")):
         return "bj" + code
     raise ValueError("Unsupported A-share code: " + code)
 

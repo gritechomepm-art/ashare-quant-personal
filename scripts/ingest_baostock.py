@@ -14,7 +14,7 @@ FIELDS = "date,code,open,high,low,close,volume,amount,tradestatus,isST"
 
 def is_share(code):
     return len(code) == 9 and code[2] == "." and code[3:].isdigit() and code.startswith(
-        ("sh.6", "sz.0", "sz.3", "bj.4", "bj.8"))
+        ("sh.6", "sz.0", "sz.3", "bj.4", "bj.8", "bj.9"))
 
 
 def normalize_history(frame, code, name, day):
