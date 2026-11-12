@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/baostock-backfill.yml'
       - 'scripts/ingest_baostock.py'
+      - 'scripts/build_signal_tracker.py'
       - 'scripts/core.py'
       - 'quant_v1.py'
       - 'tests/test_core.py'
