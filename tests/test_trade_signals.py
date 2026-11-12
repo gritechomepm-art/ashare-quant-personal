@@ -58,7 +58,7 @@ def test_t_plus_one_blocks_same_session_exit():
 
 def test_three_trading_session_time_exit():
     frame = rising_bars()
-    entry_date = frame.date.iloc[-3].strftime("%Y-%m-%d")
+    entry_date = frame.date.iloc[-4].strftime("%Y-%m-%d")
     result = evaluate_exit_signal(frame, cost=float(frame.close.iloc[-1]), entry_date=entry_date)
     assert result["status"] == "SELL_TIME"
 
