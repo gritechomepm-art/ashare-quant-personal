@@ -94,12 +94,13 @@ function toast(msg){let e=$('toast');e.textContent=msg;e.style.display='block';c
 function bjParts(date=new Date()){const str=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit',weekday:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(date);let o={};for(const p of str)o[p.type]=p.value;return {date:`${o.year}-${o.month}-${o.day}`,weekday:o.weekday,minutes:Number(o.hour)*60+Number(o.minute)}}
 function isTradingWindow(){const b=bjParts();return !['Sat','Sun'].includes(b.weekday)&&((b.minutes>=570&&b.minutes<=690)||(b.minutes>=780&&b.minutes<=900))}
 function freshness(){if(PREVIEW)return {label:'合成演示 · 非真实行情',level:'warning',age:null};
- const t=Date.parse(market.fetched_at||'');if(market.status!=='ok'||!Number.isFinite(t))return {label:'暂无行情数据',level:'danger',age:null};
- const minutes=(Date.now()-t)/60000;if(minutes< -5)return{label:'行情时间异常',level:'danger',age:minutes};
- if(isTradingWindow()&&minutes>15)return{label:'盘中行情过期 '+Math.round(minutes)+'分钟',level:'danger',age:minutes};
- if(minutes>60*24)return{label:'旧行情 · '+Math.floor(minutes/1440)+'天前采集',level:'danger',age:minutes};
- if(isTradingWindow())return{label:'快照 '+(market.fetched_at?.slice(11,16)||'')+' 北京时间',level:'ok',age:minutes};
- return{label:'非交易时段 · 最近快照',level:'warning',age:minutes};}
+ const sourceTime=market.quote_time_latest||market.fetched_at||'';
+ const t=Date.parse(sourceTime);if(market.status!=='ok'||!Number.isFinite(t))return {label:'暂无有效行情源时间',level:'danger',age:null};
+ const minutes=(Date.now()-t)/60000;if(minutes< -5)return{label:'行情源时间异常',level:'danger',age:minutes};
+ if(isTradingWindow()&&minutes>15)return{label:'行情源已过期 '+Math.round(minutes)+'分钟',level:'danger',age:minutes};
+ if(minutes>60*24)return{label:'旧行情源 · '+Math.floor(minutes/1440)+'天前',level:'danger',age:minutes};
+ if(isTradingWindow())return{label:'行情源 '+(sourceTime.slice(11,16)||'')+' 北京时间',level:'ok',age:minutes};
+ return{label:'非交易时段 · 最近行情源',level:'warning',age:minutes};}
 function quoteAgeMinutes(q){
  const stamp=Date.parse(q?.quote_time||'');
  return Number.isFinite(stamp)?(Date.now()-stamp)/60000:Infinity;
@@ -136,7 +137,7 @@ function liveBuyState(row){
  return {status:'BUY',label:'盘中买入预警',price,relativeVolume,quoteTime:q.quote_time};
 }
 
-function showStatus(){const f=freshness();$('statusText').textContent=f.label;$('connectionStatus').className='status-pill '+(f.level==='ok'?'':f.level);$('freshnessChip').textContent=PREVIEW?'全部数据为虚构演示':market.status==='ok'?`公开行情采集 ${market.fetched_at?.slice(0,16).replace('T',' ')||'未知'}（北京时间）`:f.label;
+function showStatus(){const f=freshness();$('statusText').textContent=f.label;$('connectionStatus').className='status-pill '+(f.level==='ok'?'':f.level);$('freshnessChip').textContent=PREVIEW?'全部数据为虚构演示':market.status==='ok'?`行情源 ${market.quote_time_latest?.slice(0,16).replace('T',' ')||'未知'} · 采集 ${market.fetched_at?.slice(11,16)||'未知'}（北京时间）`:f.label;
  $('dateChip').textContent=screen.asof?`收盘筛选截至 ${screen.asof}`:'盘后筛选待初始化';}
 function priceBounds(){
  const min=Number($('priceMin')?.value??priceFilter.min??3),max=Number($('priceMax')?.value??priceFilter.max??100);
