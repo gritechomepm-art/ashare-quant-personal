@@ -211,7 +211,7 @@ def simulate_portfolio(events, bars_by_code, horizon, initial_capital=1_000_000.
     }
     candidates_by_date = {}
     for event in events:
-        if event.get("entry_status") != "ENTERED":
+        if event.get("entry_status") != "ENTERED" or event.get("signal_type", "CLOSE_CONFIRM") != "CLOSE_CONFIRM":
             continue
         entry_date = event.get("entry_date")
         if not entry_date or entry_date not in bar_maps.get(event["code"], {}):
