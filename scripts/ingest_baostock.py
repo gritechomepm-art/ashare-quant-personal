@@ -157,6 +157,7 @@ def collect(root=ROOT, max_new=300, max_seconds=1000, quotes_file=None):
               "covered_count": ready, "coverage_pct": round(100*ready/total, 2),
               "filter_note": "覆盖率分母为当前非ST非退市A股候选池；只有下载日K后才可检查成交额>=3000万元；非历史可交易成分回测",
               "total_signals": sum(bool(row.get("entry_signal")) for row in ranked),
+              "buy_watch_count": sum(bool(row.get("entry_signal")) for row in ranked),
               "legacy_v1_signal_count": sum(bool(row["signal"]) for row in ranked),
               "rows": ranked[:200], "screened_count": len(ranked),
               "warning": "历史数据覆盖不完整；未覆盖不是无信号，严禁当作全市场筛选。"}
