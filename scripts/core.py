@@ -149,7 +149,9 @@ def make_screen(quotes_payload,root=ROOT,asof=None):
             'asof':asof,'generated_at':now_cst().isoformat(timespec='seconds'),
             'universe_count':universe,'eligible_count':len(eligible),'covered_count':ready,
             'coverage_pct':coverage,'filter_note':'非ST/退市、成交额>=3000万元、至少65根K线；未建模停牌和历史成分',
-            'total_signals':sum(bool(r['signal']) for r in ranked),
+            'total_signals':sum(bool(r.get('entry_signal')) for r in ranked),
+            'buy_watch_count':sum(bool(r.get('entry_signal')) for r in ranked),
+            'legacy_v1_signal_count':sum(bool(r['signal']) for r in ranked),
             'rows':ranked[:200],'screened_count':len(ranked),
             'warning':'只覆盖历史成功下载且截至当日的股票；未覆盖不等于无信号。'}
 
