@@ -236,10 +236,13 @@ function renderTracker(){
  const cohortText = ["INTRADAY_WARNING","CLOSE_CONFIRM"].map(type=>{
   const label=type==="INTRADAY_WARNING"?"盘中预警":"收盘确认";
   const group=eventsForType(data.events,type);
-  const done=group.map(e=>e.outcomes?.[h]).filter(o=>o?.status==="COMPLETE");
-  const wins=done.filter(o=>Number(o.return_pct)>0).length;
-  const avg=done.length?done.reduce((sum,o)=>sum+Number(o.return_pct),0)/done.length:null;
-  return label+"："+group.length+"次，完成"+done.length+"次，胜率"+(done.length?fmt(100*wins/done.length,1)+"%":"—")+"，平均收益"+(avg===null?"—":signed(avg)+"%");
+  const done=group.map(e=>({date:e.signal_date||"",outcome:e.outcomes?.[h]})).filter(x=>x.outcome?.status==="COMPLETE").sort((a,b)=>a.date.localeCompare(b.date));
+  const returns=done.map(x=>Number(x.outcome.return_pct));
+  const wins=returns.filter(value=>value>0),losses=returns.filter(value=>value<0);
+  const avg=values=>values.length?values.reduce((sum,value)=>sum+value,0)/values.length:null;
+  let streak=0,maxStreak=0;
+  for(const value of returns){if(value<0){streak++;maxStreak=Math.max(maxStreak,streak);}else{streak=0;}}
+  return label+"："+group.length+"次，完成"+done.length+"次，胜率"+(done.length?fmt(100*wins.length/done.length,1)+"%":"—")+"，平均盈利"+(avg(wins)===null?"—":signed(avg(wins))+"%")+"，平均亏损"+(avg(losses)===null?"—":signed(avg(losses))+"%")+"，连续亏损峰值"+maxStreak+"次";
  }).join("；");
  $('trackerCohorts').textContent=cohortText;
  $('trackerCount').textContent=(data.signal_count||0)+' 次信号 · 展示最近80条';
