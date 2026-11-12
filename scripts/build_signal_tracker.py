@@ -176,24 +176,6 @@ def summarize_horizon(events, horizon):
         or event.get("outcomes", {}).get(key, {}).get("status") == "PENDING"
         for event in events
     )
-    ordered = sorted(
-        (event for event in events
-         if event.get("entry_status") == "ENTERED"
-         and event.get("outcomes", {}).get(key, {}).get("status") == "COMPLETE"),
-        key=lambda event: (event.get("signal_date", ""), event.get("code", "")),
-    )
-    curve = 0.0
-    peak = 0.0
-    event_drawdown = 0.0
-    streak = 0
-    max_streak = 0
-    for event in ordered:
-        result = float(event["outcomes"][key]["return_pct"])
-        curve += result
-        peak = max(peak, curve)
-        event_drawdown = min(event_drawdown, curve - peak)
-        streak = streak + 1 if result < 0 else 0
-        max_streak = max(max_streak, streak)
     return {
         "horizon_sessions_after_t1_unlock": horizon,
         "signal_count": total,
@@ -208,9 +190,7 @@ def summarize_horizon(events, horizon):
         "average_loss_yuan": round(sum(losses) / len(losses), 2) if losses else None,
         "profit_factor": round(sum(wins) / -sum(losses), 3) if losses else ("∞" if wins else None),
         "net_profit_yuan": round(sum(pnls), 2) if pnls else None,
-        "event_sequence_max_drawdown_pct": round(event_drawdown, 3) if completed else None,
-        "max_consecutive_losses": max_streak if completed else None,
-        "note": "独立信号事件统计；同一股票/日期附近的信号可能重叠，不代表组合净值或可直接执行的资金曲线。组合回撤请看组合模拟指标。",
+        "note": "独立信号事件统计；同一股票/日期附近的信号可能重叠，不代表组合净值或可直接执行的资金曲线。组合回撤与连续亏损请看组合模拟指标。",
     }
 
 
