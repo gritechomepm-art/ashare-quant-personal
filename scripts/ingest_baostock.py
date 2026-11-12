@@ -159,7 +159,7 @@ def collect(root=ROOT, max_new=300, max_seconds=1000, quotes_file=None):
               "total_signals": sum(bool(row.get("entry_signal")) for row in ranked),
               "buy_watch_count": sum(bool(row.get("entry_signal")) for row in ranked),
               "legacy_v1_signal_count": sum(bool(row["signal"]) for row in ranked),
-              "rows": ranked[:200], "screened_count": len(ranked),
+              "rows": ranked, "screened_count": len(ranked),
               "warning": "历史数据覆盖不完整；未覆盖不是无信号，严禁当作全市场筛选。"}
     atomic_json(root/"screen.json", screen)
     atomic_json(root/"baostock_status.json", {
