@@ -1,0 +1,7 @@
+name = "ashare-quote-proxy"
+main = "src/index.mjs"
+compatibility_date = "2026-11-12"
+workers_dev = true
+
+[vars]
+ALLOWED_ORIGIN = "https://gritechomepm-art.github.io"
