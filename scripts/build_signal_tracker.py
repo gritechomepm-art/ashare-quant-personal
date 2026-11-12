@@ -23,6 +23,8 @@ STAMP_RATE = 0.0005
 MIN_FEE = 5.0
 SLIPPAGE = 0.001
 HORIZONS = (1, 2, 3)
+MIN_SIGNAL_PRICE = 3.0
+MAX_SIGNAL_PRICE = 100.0
 
 
 def _finite(value):
@@ -70,6 +72,8 @@ def signal_events(code, name, bars, lookback_sessions=180):
         row = x.iloc[i]
         signal_date = str(row["date"])[:10]
         signal_close = float(row["close"])
+        if not (MIN_SIGNAL_PRICE <= signal_close <= MAX_SIGNAL_PRICE):
+            continue
         atr_value = float(row["atr14"])
         buy_low = signal_close - 0.25 * atr_value
         buy_high = signal_close + 0.25 * atr_value
@@ -80,6 +84,7 @@ def signal_events(code, name, bars, lookback_sessions=180):
             "name": name,
             "signal_date": signal_date,
             "signal_close": round(signal_close, 3),
+            "score": int(row.get("score", 0)),
             "buy_low": round(buy_low, 3),
             "buy_high": round(buy_high, 3),
             "stop_reference": round(signal_close - 1.5 * atr_value, 3),
@@ -151,6 +156,7 @@ def signal_events(code, name, bars, lookback_sessions=180):
 
 
 def summarize_horizon(events, horizon):
+    """Independent signal event study; overlapping events are intentionally not a portfolio."""
     key = str(horizon)
     completed = [
         event["outcomes"].get(key, {})
@@ -158,33 +164,10 @@ def summarize_horizon(events, horizon):
         if event.get("entry_status") == "ENTERED"
         and event.get("outcomes", {}).get(key, {}).get("status") == "COMPLETE"
     ]
-    completed.sort(key=lambda item: (item.get("exit_date", ""), item.get("return_pct", 0)))
     returns = [float(item["return_pct"]) for item in completed]
     pnls = [float(item["pnl_yuan"]) for item in completed]
     wins = [value for value in pnls if value > 0]
     losses = [value for value in pnls if value < 0]
-
-    curve = 0.0
-    peak = 0.0
-    max_drawdown = 0.0
-    losing_streak = 0
-    max_losing_streak = 0
-    for item in sorted(
-        (event for event in events
-         if event.get("entry_status") == "ENTERED"
-         and event.get("outcomes", {}).get(key, {}).get("status") == "COMPLETE"),
-        key=lambda event: (event["signal_date"], event["code"]),
-    ):
-        result = float(item["outcomes"][key]["return_pct"])
-        curve += result
-        peak = max(peak, curve)
-        max_drawdown = min(max_drawdown, curve - peak)
-        if result < 0:
-            losing_streak += 1
-            max_losing_streak = max(max_losing_streak, losing_streak)
-        else:
-            losing_streak = 0
-
     total = len(events)
     entered = sum(event.get("entry_status") == "ENTERED" for event in events)
     skipped = sum(event.get("entry_status") == "SKIPPED_NO_CHASE" for event in events)
@@ -207,11 +190,169 @@ def summarize_horizon(events, horizon):
         "average_loss_yuan": round(sum(losses) / len(losses), 2) if losses else None,
         "profit_factor": round(sum(wins) / -sum(losses), 3) if losses else ("∞" if wins else None),
         "net_profit_yuan": round(sum(pnls), 2) if pnls else None,
-        "event_sequence_max_drawdown_pct": round(max_drawdown, 3) if completed else None,
-        "max_consecutive_losses": max_losing_streak if completed else None,
-        "note": "每笔100股、次日开盘入场、T+1后第N个可卖交易日收盘退出；含双边佣金、卖出印花税和0.1%单边滑点。事件可重叠，累计回撤是事件序列统计，不是组合净值回撤。",
+        "note": "独立信号事件统计；同一股票/日期附近的信号可能重叠，不代表组合净值或可直接执行的资金曲线。",
     }
 
+
+def simulate_portfolio(events, bars_by_code, horizon, initial_capital=1_000_000.0,
+                       max_positions=10, position_size_pct=0.10):
+    """Simulate one long-only portfolio with cash, 100-share lots and T+1 exits."""
+    key = str(horizon)
+    dates = sorted({str(bar["date"])[:10] for bars in bars_by_code.values() for bar in bars})
+    if not dates:
+        return {"status": "NO_DATA"}
+
+    bar_maps = {
+        code: {str(bar["date"])[:10]: bar for bar in bars}
+        for code, bars in bars_by_code.items()
+    }
+    candidates_by_date = {}
+    for event in events:
+        if event.get("entry_status") != "ENTERED":
+            continue
+        entry_date = event.get("entry_date")
+        if not entry_date or entry_date not in bar_maps.get(event["code"], {}):
+            continue
+        entry_bar = bar_maps[event["code"]][entry_date]
+        candidates_by_date.setdefault(entry_date, []).append({
+            "event": event,
+            "code": event["code"],
+            "name": event.get("name", event["code"]),
+            "entry_date": entry_date,
+            "raw_open": float(entry_bar["open"]),
+            "exit_date": event.get("outcomes", {}).get(key, {}).get("exit_date"),
+        })
+    for candidates in candidates_by_date.values():
+        candidates.sort(key=lambda c: (
+            -int(c["event"].get("score", 0)),
+            -float(c["event"].get("volume_ratio", 0)),
+            c["code"],
+        ))
+
+    cash = float(initial_capital)
+    equity = float(initial_capital)
+    peak = float(initial_capital)
+    max_drawdown_pct = 0.0
+    open_positions = {}
+    closed = []
+    rejected_capacity = 0
+    rejected_duplicate = 0
+    rejected_cash = 0
+    curve = []
+
+    for day in dates:
+        # New entries occur at today's open. Positions scheduled to exit at
+        # today's close still occupy a slot throughout the trading session.
+        for candidate in candidates_by_date.get(day, []):
+            code = candidate["code"]
+            if code in open_positions:
+                rejected_duplicate += 1
+                candidate["event"].setdefault("portfolio_status", {})[key] = "SKIPPED_DUPLICATE"
+                continue
+            if len(open_positions) >= max_positions:
+                rejected_capacity += 1
+                candidate["event"].setdefault("portfolio_status", {})[key] = "SKIPPED_CAPACITY"
+                continue
+            entry_price = candidate["raw_open"] * (1 + SLIPPAGE)
+            target_value = equity * position_size_pct
+            shares = int(target_value / (entry_price * 100)) * 100
+            if shares < 100:
+                rejected_cash += 1
+                candidate["event"].setdefault("portfolio_status", {})[key] = "SKIPPED_LOT_SIZE"
+                continue
+            buy_value = entry_price * shares
+            buy_fee = max(MIN_FEE, buy_value * FEE_RATE)
+            total_cost = buy_value + buy_fee
+            if total_cost > cash:
+                rejected_cash += 1
+                candidate["event"].setdefault("portfolio_status", {})[key] = "SKIPPED_CASH"
+                continue
+            cash -= total_cost
+            open_positions[code] = {
+                "code": code, "name": candidate["name"], "shares": shares,
+                "entry_date": day, "entry_price": entry_price,
+                "buy_value": buy_value, "buy_fee": buy_fee,
+                "exit_date": candidate["exit_date"],
+                "last_close": candidate["raw_open"],
+            }
+            candidate["event"].setdefault("portfolio_status", {})[key] = "ENTERED"
+
+        # Close T+1-eligible positions at the specified daily close.
+        for code, position in list(open_positions.items()):
+            bar = bar_maps.get(code, {}).get(day)
+            if not bar:
+                continue
+            close_price = float(bar["close"])
+            position["last_close"] = close_price
+            if position["exit_date"] == day:
+                exit_price = close_price * (1 - SLIPPAGE)
+                sell_value = exit_price * position["shares"]
+                sell_fee = max(MIN_FEE, sell_value * FEE_RATE) + sell_value * STAMP_RATE
+                pnl = sell_value - position["buy_value"] - position["buy_fee"] - sell_fee
+                ret = 100 * pnl / (position["buy_value"] + position["buy_fee"])
+                cash += sell_value - sell_fee
+                closed.append({
+                    "code": code, "name": position["name"],
+                    "entry_date": position["entry_date"], "exit_date": day,
+                    "pnl_yuan": pnl, "return_pct": ret,
+                })
+                del open_positions[code]
+
+        # Mark open holdings to estimated liquidation value (slippage + sell fees).
+        market_value = 0.0
+        for code, position in open_positions.items():
+            mark = position["last_close"] * (1 - SLIPPAGE) * position["shares"]
+            estimated_sell_fee = max(MIN_FEE, mark * FEE_RATE) + mark * STAMP_RATE
+            market_value += max(0.0, mark - estimated_sell_fee)
+        equity = cash + market_value
+        peak = max(peak, equity)
+        drawdown = (equity / peak - 1) * 100 if peak > 0 else 0.0
+        max_drawdown_pct = min(max_drawdown_pct, drawdown)
+        curve.append({"date": day, "equity_yuan": round(equity, 2), "drawdown_pct": round(drawdown, 3)})
+
+    closed.sort(key=lambda trade: (trade["exit_date"], trade["code"]))
+    pnls = [trade["pnl_yuan"] for trade in closed]
+    returns = [trade["return_pct"] for trade in closed]
+    wins = [pnl for pnl in pnls if pnl > 0]
+    losses = [pnl for pnl in pnls if pnl < 0]
+    streak = 0
+    max_streak = 0
+    for pnl in pnls:
+        if pnl < 0:
+            streak += 1
+            max_streak = max(max_streak, streak)
+        else:
+            streak = 0
+    unrealized = 0.0
+    for position in open_positions.values():
+        mark = position["last_close"] * (1 - SLIPPAGE) * position["shares"]
+        estimated_sell_fee = max(MIN_FEE, mark * FEE_RATE) + mark * STAMP_RATE
+        unrealized += mark - estimated_sell_fee - position["buy_value"] - position["buy_fee"]
+
+    return {
+        "status": "ready",
+        "initial_capital_yuan": round(initial_capital, 2),
+        "ending_equity_yuan": round(equity, 2),
+        "net_profit_yuan": round(equity - initial_capital, 2),
+        "total_return_pct": round((equity / initial_capital - 1) * 100, 3),
+        "realized_net_profit_yuan": round(sum(pnls), 2),
+        "unrealized_pnl_yuan": round(unrealized, 2),
+        "closed_trades": len(closed),
+        "open_positions": len(open_positions),
+        "win_rate_pct": round(100 * len(wins) / len(closed), 2) if closed else None,
+        "average_return_pct": round(sum(returns) / len(returns), 3) if returns else None,
+        "average_profit_yuan": round(sum(wins) / len(wins), 2) if wins else None,
+        "average_loss_yuan": round(sum(losses) / len(losses), 2) if losses else None,
+        "profit_factor": round(sum(wins) / -sum(losses), 3) if losses else ("∞" if wins else None),
+        "max_drawdown_pct": round(max_drawdown_pct, 3),
+        "max_consecutive_losses": max_streak,
+        "max_positions": max_positions,
+        "position_size_pct": round(position_size_pct * 100, 1),
+        "rejected_capacity_count": rejected_capacity,
+        "rejected_duplicate_code_count": rejected_duplicate,
+        "rejected_cash_or_lot_count": rejected_cash,
+        "note": "组合模拟：初始资金100万元，最多10只持仓，每笔按当日组合权益10%买入、整手100股；次日开盘入场，T+1后按指定周期收盘退出。含佣金、卖出印花税及0.1%单边滑点；未模拟涨跌停、停牌、除权及真实成交队列。",
+    }
 
 def build_tracker(root=ROOT, lookback_sessions=180):
     root = Path(root)
@@ -222,6 +363,7 @@ def build_tracker(root=ROOT, lookback_sessions=180):
     asof = str(screen["asof"])
     rows = screen.get("rows", [])
     events = []
+    bars_by_code = {}
     tracked = 0
     skipped_missing = 0
     for row in rows:
@@ -234,11 +376,13 @@ def build_tracker(root=ROOT, lookback_sessions=180):
             skipped_missing += 1
             continue
         tracked += 1
+        bars_by_code[code] = bars
         name = str(row.get("name") or master.get("stocks", {}).get(code, {}).get("name") or code)
         events.extend(signal_events(code, name, bars, lookback_sessions))
 
     events.sort(key=lambda event: (event["signal_date"], event["code"]))
     metrics = {str(h): summarize_horizon(events, h) for h in HORIZONS}
+    portfolio = {str(h): simulate_portfolio(events, bars_by_code, h) for h in HORIZONS}
     first_dates = [
         event["signal_date"] for event in events
         if event.get("signal_date")
@@ -250,6 +394,8 @@ def build_tracker(root=ROOT, lookback_sessions=180):
         "asof": asof,
         "generated_at": now_cst().isoformat(timespec="seconds"),
         "lookback_sessions": int(lookback_sessions),
+        "price_filter": {"min": MIN_SIGNAL_PRICE, "max": MAX_SIGNAL_PRICE, "unit": "CNY"},
+        "portfolio_assumptions": {"initial_capital_yuan": 1000000, "max_positions": 10, "position_size_pct": 10},
         "period_start": min(first_dates) if first_dates else None,
         "period_end": asof,
         "universe": {
@@ -262,12 +408,13 @@ def build_tracker(root=ROOT, lookback_sessions=180):
         },
         "signal_count": len(events),
         "metrics": metrics,
+        "portfolio": portfolio,
         "events": events[-20000:],
         "warning": [
             "当前统计只覆盖本次已成功获取且截至最新收盘日的股票，不代表完整历史A股成分股。",
             "使用当前股票池回溯历史信号，未包含历史退市股及历史成分变动，存在幸存者偏差。",
-            "每个信号独立统计，多个信号可能重叠；事件序列回撤不是可交易组合回撤。",
-            "使用不复权日线和固定费用/滑点假设；未模拟停牌、涨跌停、分红除权及真实成交队列。",
+            "独立信号事件统计可能重叠；组合回撤另按100万元初始资金、最多10个持仓、每笔10%权益的组合模拟计算。",
+            "统计按信号收盘价3–100元过滤；使用不复权日线和固定费用/滑点假设，未模拟停牌、涨跌停、分红除权及真实成交队列。",
         ],
     }
 
