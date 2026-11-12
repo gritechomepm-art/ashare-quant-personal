@@ -100,6 +100,9 @@ async function handle(request, env = {}, context = {}) {
       note: 'Health checks the Worker only, not Tencent availability' }, 200, origin, allowed);
   }
   if (url.pathname !== '/v1/quotes') return json({ ok: false, error: 'not_found' }, 404, origin, allowed);
+  // Browser-only use. Origin is not cryptographic authentication; configure
+  // Cloudflare edge rate limiting before broad public distribution.
+  if (!origin || origin !== allowed) return json({ ok: false, error: 'origin_required' }, 403, origin, allowed);
   const raw = url.searchParams.get('codes') || '';
   if (raw.length > 400) return json({ ok: false, error: 'too_many_characters' }, 400, origin, allowed);
   const codes = [...new Set(raw.split(',').map(s => s.trim()).filter(Boolean))].sort();
