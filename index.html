@@ -68,7 +68,7 @@
  <div class="card">
   <div class="scroll-x"><table class="mini-table"><thead><tr><th>信号日期 / 股票</th><th>收盘信号价</th><th>模拟入场</th><th>跟踪状态</th><th>本周期结果</th></tr></thead><tbody id="trackerRows"><tr><td colspan="5">等待追踪数据</td></tr></tbody></table></div>
  </div>
- <div class="market-notice">统计规则：收盘生成信号，次日开盘必须位于观察区间才入场；A股遵守T+1，最早从买入后的下一个交易日收盘评估。每笔按100股、佣金、卖出印花税及0.1%单边滑点模拟。多个信号可能重叠，因此事件序列回撤不是组合资金曲线。当前历史池覆盖不完整，且未纳入历史退市股，结果存在幸存者偏差。</div>
+ <div class="market-notice">统计规则：信号价默认过滤3–100元；收盘生成信号，次日开盘必须位于观察区间才入场；A股遵守T+1，最早从买入后的下一个交易日收盘评估。上方胜率和平均收益是独立信号事件统计；组合净收益与最大回撤另按100万元初始资金、最多10只持仓、每笔使用组合权益10%、整手100股模拟，含佣金、卖出印花税及0.1%单边滑点。未模拟涨跌停、停牌和历史退市股，结果仍存在幸存者偏差。</div>
 </section>
 </main><footer class="footer">数据：BaoStock 历史日线 + 腾讯财经公开行情快照 · 仅供个人研究 · 不保证行情时效和准确性<br>无交易账户接入 · 无自动下单 · 本地持仓不上传</footer>
 </div>
@@ -199,7 +199,7 @@ function renderScreen(){
  renderLivePanel();
 }
 function renderTracker(){
- const data=signalTracker||{},h=String($('trackerHorizon')?.value||3),m=data.metrics?.[h]||{};
+ const data=signalTracker||{},h=String($('trackerHorizon')?.value||3),m=data.metrics?.[h]||{},p=data.portfolio?.[h]||{};
  const u=data.universe||{};
  $('trackerAsOf').textContent=data.asof?'截至 '+data.asof+' 收盘':'尚无追踪日期';
  $('trackerCoverage').textContent=data.asof
@@ -215,11 +215,12 @@ function renderTracker(){
   ['平均收益',m.average_return_pct==null?'—':signed(m.average_return_pct)+'%'],
   ['平均盈利',m.average_profit_yuan==null?'—':signed(m.average_profit_yuan)+'元'],
   ['平均亏损',m.average_loss_yuan==null?'—':fmt(m.average_loss_yuan)+'元'],
-  ['事件序列回撤',m.event_sequence_max_drawdown_pct==null?'—':fmt(m.event_sequence_max_drawdown_pct)+'%'],
-  ['最大连续亏损',m.max_consecutive_losses==null?'—':m.max_consecutive_losses+'次'],
-  ['待跟踪',m.pending_count??'—'],
-  ['跳过追高',m.skipped_no_chase_count??'—'],
-  ['Profit Factor',m.profit_factor==='∞'?'∞':m.profit_factor==null?'—':fmt(m.profit_factor,2)]
+  ['Profit Factor',m.profit_factor==='∞'?'∞':m.profit_factor==null?'—':fmt(m.profit_factor,2)],
+  ['组合净收益',p.net_profit_yuan==null?'—':signed(p.net_profit_yuan)+'元'],
+  ['组合最大回撤',p.max_drawdown_pct==null?'—':fmt(p.max_drawdown_pct)+'%'],
+  ['最大连续亏损',p.max_consecutive_losses==null?'—':p.max_consecutive_losses+'次'],
+  ['组合当前持仓',p.open_positions??'—'],
+  ['仓位上限放弃',p.rejected_capacity_count??'—']
  ];
  $('trackerMetrics').innerHTML=cards.map(([label,value])=>'<div class="metric"><small>'+label+'</small><strong>'+value+'</strong></div>').join('');
  $('trackerCount').textContent=(data.signal_count||0)+' 次信号 · 展示最近80条';
@@ -227,11 +228,13 @@ function renderTracker(){
  $('trackerRows').innerHTML=events.length?events.map(event=>{
   const outcome=event.outcomes?.[h]||{};
   const entryStatus=event.entry_status==='ENTERED'?'已模拟入场':event.entry_status==='SKIPPED_NO_CHASE'?'跳过：超出观察区间':'等待次日开盘';
+  const portfolioStatus=event.portfolio_status?.[h];
+  const portfolioLabel=portfolioStatus==='ENTERED'?'组合已纳入':portfolioStatus==='SKIPPED_CAPACITY'?'组合仓位已满':portfolioStatus==='SKIPPED_DUPLICATE'?'已有同股持仓':portfolioStatus==='SKIPPED_CASH'||portfolioStatus==='SKIPPED_LOT_SIZE'?'资金/整手不足':'';
   const result=outcome.status==='COMPLETE'
    ?'<span class="'+(Number(outcome.pnl_yuan)>0?'up':Number(outcome.pnl_yuan)<0?'down':'')+'">'+signed(Number(outcome.return_pct))+'% / '+signed(Number(outcome.pnl_yuan))+'元</span><div class="fine">退出 '+escapeHTML(outcome.exit_date||'')+'</div>'
    :outcome.status==='SKIPPED'?'<span class="fine">未入场</span>':'<span class="tag caution">跟踪中</span>';
   const entry=event.entry_status==='ENTERED'?fmt(Number(event.entry_price))+'元':event.entry_status==='SKIPPED_NO_CHASE'?'—':'待确认';
-  return '<tr><td><b>'+escapeHTML(event.name||event.code)+'</b><div class="fine">'+escapeHTML(event.code)+' · '+escapeHTML(event.signal_date||'')+'</div></td><td>'+fmt(Number(event.signal_close))+'元</td><td>'+entry+'<div class="fine">'+escapeHTML(event.entry_date||'')+'</div></td><td>'+entryStatus+'</td><td>'+result+'</td></tr>';
+  return '<tr><td><b>'+escapeHTML(event.name||event.code)+'</b><div class="fine">'+escapeHTML(event.code)+' · '+escapeHTML(event.signal_date||'')+'</div></td><td>'+fmt(Number(event.signal_close))+'元</td><td>'+entry+'<div class="fine">'+escapeHTML(event.entry_date||'')+'</div></td><td>'+entryStatus+(portfolioLabel?'<div class="fine">'+portfolioLabel+'</div>':'')+'</td><td>'+result+'</td></tr>';
  }).join(''):'<tr><td colspan="5">暂无历史买入信号；或当前历史覆盖尚未完成。</td></tr>';
 }
 function renderWatch(){
