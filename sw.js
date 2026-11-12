@@ -1,4 +1,4 @@
-const NAME='ashare-quant-shell-v1-6';
+const NAME='ashare-quant-shell-v1-7';
 const ASSETS=['./','./index.html','./manifest.webmanifest','./assets/icon.svg'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(NAME).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(names=>Promise.all(names.filter(n=>n!==NAME).map(n=>caches.delete(n)))).then(()=>self.clients.claim())));
