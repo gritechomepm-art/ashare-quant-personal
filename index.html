@@ -254,11 +254,11 @@ function renderTracker(){
     ?'<span class="'+(Number(item.return_pct)>0?'up':Number(item.return_pct)<0?'down':'')+'">'+signed(Number(item.return_pct))+'%</span><div class="fine">'+escapeHTML(item.exit_date||'')+'</div>'
     :item.status==='SKIPPED'?'<span class="fine">未入场</span>':'<span class="tag caution">待跟踪</span>';
   };
-  const entry=event.signal_type==="INTRADAY_WARNING"?'预警 '+fmt(reference)+'元':event.entry_status==='ENTERED'?fmt(Number(event.entry_price))+'元':event.entry_status==='SKIPPED_NO_CHASE'?'—':'待确认';
   const signalLabel=event.signal_label||(event.signal_type==="INTRADAY_WARNING"?"盘中预警":"收盘确认");
   const signalTime=event.signal_time?' · '+String(event.signal_time).slice(11,16):'';
   const reference=Number(event.reference_price??event.signal_close);
-  return '<tr><td><b>'+escapeHTML(event.name||event.code)+'</b><div class="fine">'+escapeHTML(event.code)+' · '+escapeHTML(event.signal_date||'')+escapeHTML(signalTime)+' · '+escapeHTML(signalLabel)+'</div></td><td>'+fmt(reference)+'元</td><td>'+entry+'<div class="fine">'+escapeHTML(event.entry_date||'')+'</div></td><td>'+entryStatus+'</td><td>'+result+'</td></tr>';
+  const entry=event.signal_type==="INTRADAY_WARNING"?'预警 '+fmt(reference)+'元':event.entry_status==='ENTERED'?fmt(Number(event.entry_price))+'元':event.entry_status==='SKIPPED_NO_CHASE'?'—':'待确认';
+  return '<tr><td><b>'+escapeHTML(event.name||event.code)+'</b><div class="fine">'+escapeHTML(event.code)+' · '+escapeHTML(event.signal_date||'')+escapeHTML(signalTime)+' · '+escapeHTML(signalLabel)+'</div></td><td>'+fmt(reference)+'元</td><td>'+entry+'<div class="fine">'+escapeHTML(event.entry_date||'')+'</div></td><td>'+entryStatus+'</td><td>'+resultCell("1")+'</td><td>'+resultCell("2")+'</td><td>'+resultCell("3")+'</td></tr>';
  }).join(''):'<tr><td colspan="7">暂无历史买入信号；或当前历史覆盖尚未完成。</td></tr>';
 }
 function renderWatch(){
