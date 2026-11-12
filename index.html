@@ -146,7 +146,7 @@ function renderLivePanel(){
  $('liveBuySignals').innerHTML=!live
   ?'<div class="fine">非交易时段、行情过期或未取得有效报价。盘中时段为北京时间 09:30–11:30、13:00–15:00；行情快照约5分钟采集一次，不是逐笔行情。</div>'
   :buyAlerts.length?buyAlerts.map(x=>'<div class="live-alert"><div class="live-alert-main"><div class="live-alert-title">'+escapeHTML(x.row.name)+' <span class="tag good">盘中买入预警</span></div><div class="live-alert-meta">'+x.row.code+' · 时段量比 '+fmt(x.state.relativeVolume,2)+' · 区间 '+fmt(x.row.buy_low)+'–'+fmt(x.row.buy_high)+' 元</div></div><div class="live-alert-price">'+fmt(x.state.price)+'元<button class="btn small" data-detail="'+x.row.code+'" style="display:block;margin-top:5px">分析</button></div></div>').join('')
-  :'<div class="fine">当前没有股票同时满足日线买入条件、盘中价格区间、均线和成交量确认。</div>';
+  :(elapsedSessionFraction()<.125?'<div class="fine">开盘前30分钟，先观察价格与均线；成交量样本尚不稳定，暂不发出盘中买入预警。</div>':'<div class="fine">当前没有股票同时满足日线买入条件、盘中价格区间、均线和成交量确认。</div>');
  const sellAlerts=liveSellAlerts.filter(x=>x.live);
  $('liveSellCount').textContent=live?sellAlerts.length+'只':'—';
  $('liveSellSignals').innerHTML=!live
@@ -216,10 +216,11 @@ async function renderPositions(){
    diff=(current-p.cost)*p.qty;
    priceLabel=liveQuote?'盘中行情':recentQuote?'最近行情快照':'最近收盘价';
    const hitStop=current<=stop,hitTarget=current>=target;
-   const t1Locked=entryDate&&entryDate>=today;
+   const t1Locked=entryDate&&entryDate>=today,t1Unknown=!entryDate;
    let label='继续观察持有',reason='止损、止盈、趋势和持有期限条件均未触发',tag='hold';
    if(liveQuote){
-    if(t1Locked&&(hitStop||hitTarget)){
+    if(t1Unknown){label='买入日期缺失 · 卖出预警暂停';reason='未记录买入日期，无法核验A股T+1限制；请补录买入日期后再生成卖出预警。';tag='caution';}
+    else if(t1Locked&&(hitStop||hitTarget)){
      label='T+1锁定 · 卖出条件触发';
      reason=hitStop?'盘中价格已触及止损参考线，但当日买入A股受T+1限制，下一交易日优先复核。':'盘中价格已触及止盈参考线，但当日买入A股受T+1限制，下一交易日优先复核。';
      tag='caution';
@@ -288,7 +289,7 @@ async function fetchQuotesWithFallback(){
 async function refreshMarket(){if(busy)return;busy=true;$('refreshAll').disabled=true;try{
  if(PREVIEW){market=PREVIEW.market;screen=PREVIEW.screen}
  else{const [mr,sr,sm]=await Promise.allSettled([fetchQuotesWithFallback(),fetchJSON('./data/screen.json'),loadStockMaster()]);if(mr.status==='fulfilled'&&mr.value.schema===1)market=mr.value;else toast('行情快照更新失败，保留上次数据显示');if(sr.status==='fulfilled'&&sr.value.schema===1)screen=sr.value;if(sm.status==='rejected')console.warn('Stock master unavailable:',sm.reason);}
- showStatus();renderScreen();renderWatch();renderPositions();
+ ['detailCode','watchCode','posCode','btCode'].forEach(id=>updateStockOptions($(id).value));showStatus();renderScreen();renderWatch();renderPositions();
  }finally{busy=false;$('refreshAll').disabled=false}}
 async function loadHistory(code){
  if(!validCode(code))throw Error('需要6位股票代码');
