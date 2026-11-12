@@ -79,7 +79,10 @@ def signal_events(code, name, bars, lookback_sessions=180):
         buy_high = signal_close + 0.25 * atr_value
 
         event = {
-            "id": code + "|" + signal_date,
+            "id": "CLOSE_CONFIRM|" + code + "|" + signal_date,
+            "signal_type": "CLOSE_CONFIRM",
+            "signal_label": "收盘确认",
+            "reference_price": round(signal_close, 3),
             "code": code,
             "name": name,
             "signal_date": signal_date,
@@ -380,7 +383,64 @@ def build_tracker(root=ROOT, lookback_sessions=180):
         name = str(row.get("name") or master.get("stocks", {}).get(code, {}).get("name") or code)
         events.extend(signal_events(code, name, bars, lookback_sessions))
 
-    events.sort(key=lambda event: (event["signal_date"], event["code"]))
+    # Merge durable intraday warning events captured by the five-minute quote workflow.
+    intraday_path = root / "intraday_signal_events.json"
+    intraday_payload = load_json(intraday_path, {}) or {}
+    intraday_events = intraday_payload.get("events", []) if isinstance(intraday_payload, dict) else []
+    history_maps = {
+        code: {str(bar["date"])[:10]: bar for bar in bars}
+        for code, bars in bars_by_code.items()
+    }
+    known_ids = {event.get("id") for event in events}
+    for raw in intraday_events:
+        code = str(raw.get("code", ""))
+        signal_date = str(raw.get("signal_date", ""))[:10]
+        reference = raw.get("reference_price")
+        if code not in history_maps or not _finite(reference) or float(reference) <= 0:
+            continue
+        if raw.get("id") in known_ids:
+            continue
+        bars = bars_by_code[code]
+        dates = [str(bar["date"])[:10] for bar in bars]
+        if signal_date not in dates:
+            continue
+        signal_index = dates.index(signal_date)
+        outcomes = {}
+        for horizon in HORIZONS:
+            exit_index = signal_index + horizon
+            if exit_index >= len(bars):
+                outcomes[str(horizon)] = {"status": "PENDING", "reason": "等待后续交易日收盘"}
+                continue
+            exit_close = float(bars[exit_index]["close"])
+            exit_price = exit_close * (1 - SLIPPAGE)
+            entry_price = float(reference) * (1 + SLIPPAGE)
+            buy_value = entry_price * SHARES
+            buy_fee = max(MIN_FEE, buy_value * FEE_RATE)
+            sell_value = exit_price * SHARES
+            sell_fee = max(MIN_FEE, sell_value * FEE_RATE) + sell_value * STAMP_RATE
+            pnl = sell_value - buy_value - buy_fee - sell_fee
+            outcomes[str(horizon)] = {
+                "status": "COMPLETE", "exit_date": dates[exit_index],
+                "exit_close": round(exit_close, 3),
+                "pnl_yuan": round(pnl, 2),
+                "return_pct": round(100 * pnl / (buy_value + buy_fee), 3),
+            }
+        event = dict(raw)
+        event.update({
+            "signal_type": "INTRADAY_WARNING",
+            "signal_label": "盘中预警",
+            "reference_price": round(float(reference), 3),
+            "signal_close": round(float(reference), 3),
+            "entry_status": "ENTERED",
+            "entry_date": signal_date,
+            "entry_price": round(float(reference), 3),
+            "entry_reason": "盘中预警首次触发价；独立事件研究，不代表可成交",
+            "outcomes": outcomes,
+        })
+        events.append(event)
+        known_ids.add(event.get("id"))
+
+    events.sort(key=lambda event: (event["signal_date"], event["code"], event.get("signal_type", "")))
     metrics = {str(h): summarize_horizon(events, h) for h in HORIZONS}
     portfolio = {str(h): simulate_portfolio(events, bars_by_code, h) for h in HORIZONS}
     first_dates = [
@@ -390,7 +450,8 @@ def build_tracker(root=ROOT, lookback_sessions=180):
     return {
         "schema": 1,
         "status": "ready" if tracked else "uninitialized",
-        "source": "BaoStock unadjusted daily bars + quant_v1.evaluate_entry_signal equivalent",
+        "source": "BaoStock daily bars + Tencent intraday quote-feed; close-confirm and intraday-warning cohorts",
+        "intraday_event_count": sum(event.get("signal_type") == "INTRADAY_WARNING" for event in events),
         "asof": asof,
         "generated_at": now_cst().isoformat(timespec="seconds"),
         "lookback_sessions": int(lookback_sessions),
