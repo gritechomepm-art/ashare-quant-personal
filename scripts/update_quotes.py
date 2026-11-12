@@ -124,6 +124,30 @@ def fetch_market(codes=None, batch_size=100, pause=0.12):
             f"({coverage}%), minimum required {minimum}; failed chunks={len(failed_chunks)}"
         )
     now = datetime.now(CST)
+    timed = []
+    for quote in quotes.values():
+        stamp = quote.get("quote_time")
+        if not stamp:
+            continue
+        try:
+            age_minutes = (now - datetime.fromisoformat(stamp)).total_seconds() / 60
+        except ValueError:
+            continue
+        if -5 <= age_minutes <= 15:
+            timed.append(stamp)
+    fresh_count = len(timed)
+    fresh_pct = round(fresh_count / max(1, len(codes)) * 100, 2)
+    in_session = now.weekday() < 5 and (
+        570 <= now.hour * 60 + now.minute <= 690
+        or 780 <= now.hour * 60 + now.minute <= 915
+    )
+    # Do not replace a usable feed with a newly collected but stale response.
+    # A minimum active-quote ratio avoids one fresh symbol masking a stale market snapshot.
+    if in_session and fresh_count < max(100, int(len(codes) * 0.20)):
+        raise RuntimeError(
+            f"Stale Tencent snapshot during market session: only "
+            f"{fresh_count}/{len(codes)} ({fresh_pct}%) quotes are <=15 minutes old"
+        )
     times = [q["quote_time"] for q in quotes.values() if q.get("quote_time")]
     return {
         "schema": 1, "status": "ok",
@@ -134,7 +158,8 @@ def fetch_market(codes=None, batch_size=100, pause=0.12):
         "quote_time_latest": max(times) if times else None,
         "market_timezone": "Asia/Shanghai",
         "count": count, "requested_count": len(codes),
-        "coverage_pct": coverage, "failed_chunk_count": len(failed_chunks),
+        "coverage_pct": coverage, "fresh_quote_count": fresh_count,
+        "fresh_quote_pct": fresh_pct, "failed_chunk_count": len(failed_chunks),
         "failed_chunks": failed_chunks[:10], "quotes": quotes,
         "warning": "腾讯公开行情接口为非官方快照，可能延迟、限流或变更；未返回的股票不代表停牌或无交易。",
     }
@@ -153,7 +178,8 @@ def main():
     print(json.dumps({
         "status": payload["status"], "source": payload["source"],
         "count": payload["count"], "requested_count": payload["requested_count"],
-        "coverage_pct": payload["coverage_pct"], "failed_chunk_count": payload["failed_chunk_count"],
+        "coverage_pct": payload["coverage_pct"], "fresh_quote_count": payload["fresh_quote_count"],
+        "fresh_quote_pct": payload["fresh_quote_pct"], "failed_chunk_count": payload["failed_chunk_count"],
         "fetched_at": payload["fetched_at"],
     }, ensure_ascii=False))
     return payload
