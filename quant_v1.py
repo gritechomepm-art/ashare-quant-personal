@@ -145,7 +145,10 @@ def backtest_trade_signals(frame, code, maxhold=3, fee=0.0003, stamp=0.0005,
         buy_fee = max(minfee, notional * fee)
         stop = buy - 1.5 * atr
         target = buy + 2.0 * atr
-        last_exit = min(len(x) - 1, entry_i + maxhold)
+        if entry_i + maxhold >= len(x):
+            # Not enough forward sessions to evaluate a complete holding window.
+            break
+        last_exit = entry_i + maxhold
         exit_i = None
         sell = None
         reason = "time"
