@@ -263,14 +263,18 @@ def run(csvdir,out,asof=None,hold=10):
             if asof:raw=raw[raw.date<=pd.Timestamp(asof)].reset_index(drop=True)
             if len(raw)<65:errors.append({'code':code,'error':'less than 65 observations'});continue
             x=enrich(raw);last=x.iloc[-1]
+            entry = evaluate_entry_signal(raw)
             signals.append({'code':code,'asof_date':str(last.date.date()),'close':round(float(last.close),3),
                             'score':int(last.score),'watch_signal':bool(last.signal),
+                            'entry_signal':entry['status']=='BUY_WATCH','entry_status':entry['status'],
+                            'buy_low':entry.get('buy_low'),'buy_high':entry.get('buy_high'),
+                            'stop_reference':entry.get('stop_reference'),'target_reference':entry.get('target_reference'),
                             'ma5':round(float(last.ma5),3),'ma10':round(float(last.ma10),3),
                             'atr14':round(float(last.atr14),3),
-                            'next_action':'WATCH_NEXT_SESSION_OPEN' if last.signal else 'NO_SIGNAL'})
+                            'next_action':'BUY_WATCH_NEXT_SESSION' if entry['status']=='BUY_WATCH' else 'WAIT'})
             trades+=backtest_trade_signals(raw,code,maxhold=hold)
         except Exception as e:errors.append({'code':path.stem,'error':str(e)[:200]})
-    pd.DataFrame(signals,columns=['code','asof_date','close','score','watch_signal','ma5','ma10','atr14','next_action']).sort_values('score',ascending=False).to_csv(out/'signals.csv',index=False,encoding='utf-8-sig')
+    pd.DataFrame(signals,columns=['code','asof_date','close','score','watch_signal','entry_signal','entry_status','buy_low','buy_high','stop_reference','target_reference','ma5','ma10','atr14','next_action']).sort_values('score',ascending=False).to_csv(out/'signals.csv',index=False,encoding='utf-8-sig')
     pd.DataFrame(trades,columns=['code','signal_date','entry_date','exit_date','entry','exit','shares','bars_held','exit_reason','pnl_yuan','return_pct']).to_csv(out/'trades.csv',index=False,encoding='utf-8-sig')
     pd.DataFrame([evaluate(trades)]).to_csv(out/'metrics.csv',index=False,encoding='utf-8-sig')
     pd.DataFrame(errors,columns=['code','error']).to_csv(out/'errors.csv',index=False,encoding='utf-8-sig')
