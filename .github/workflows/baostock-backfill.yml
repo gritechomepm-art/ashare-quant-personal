@@ -136,7 +136,7 @@ jobs:
               else:
                   print(f"Keep newer {filename}: {current_day}/{current_count} > {candidate_day}/{candidate_count}")
           PY
-            git add data/history/ data/screen.json data/stocks.json data/baostock_status.json data/signal_tracker.json
+            git add data/history/ data/screen.json data/stocks.json data/baostock_status.json data/signal_tracker.json data/intraday_signal_events.json
             if git diff --cached --quiet; then
               echo "No new public EOD data to commit."
               exit 0
