@@ -68,11 +68,13 @@ def test_v13_backtest_uses_next_session_entry_and_three_day_exit():
     frame["volume"] = 1000.0
     frame.loc[99, "volume"] = 1400.0
     frame.loc[100, "open"] = float(frame.loc[99, "close"])
+    signal_close = float(frame.loc[99, "close"])
     for idx in range(100, 105):
-        close = float(frame.loc[99, "close"]) + 0.03 * (idx - 99)
+        close = signal_close + 0.06 * (idx - 99)
         frame.loc[idx, ["close", "open"]] = [close, close]
-        frame.loc[idx, "high"] = close + 0.08
-        frame.loc[idx, "low"] = close - 0.08
+        frame.loc[idx, "high"] = close + 0.02
+        frame.loc[idx, "low"] = close - 0.02
+    frame.loc[100, "open"] = signal_close
     trades = backtest_trade_signals(frame, "000001", maxhold=3)
     assert len(trades) == 1
     assert trades[0]["signal_date"] == frame.loc[99, "date"].date().isoformat()
