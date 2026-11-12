@@ -77,7 +77,7 @@ jobs:
           snapshot="$RUNNER_TEMP/ashare-new-data"
           mkdir -p "$snapshot/history"
           cp -a data/history/. "$snapshot/history/"
-          cp data/stocks.json data/screen.json data/baostock_status.json data/signal_tracker.json data/intraday_signal_events.json "$snapshot/"
+          cp data/stocks.json data/screen.json data/baostock_status.json data/signal_tracker.json "$snapshot/"
           cp /tmp/ashare-intraday-events.json "$snapshot/intraday_signal_events.json"
           for attempt in 1 2 3; do
             echo "Merge attempt $attempt/3"
