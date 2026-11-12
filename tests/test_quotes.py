@@ -53,7 +53,7 @@ def test_quote_workflow_covers_market_sessions_and_close_snapshot():
     workflow = (root / ".github/workflows/quotes.yml").read_text()
     # GitHub cron is UTC; 01:00-03:59 and 05:00-07:59 cover
     # Beijing morning/afternoon sessions, including the 15:07 close snapshot.
-    assert "2-57/5 1-3,5-7 * * 1-5" in workflow
+    assert "*/5 1-3,5-7 * * 1-5" in workflow
     assert "1 7 * * 1-5" in workflow
     assert "570 <= m <= 690" in workflow
     assert "780 <= m <= 915" in workflow
