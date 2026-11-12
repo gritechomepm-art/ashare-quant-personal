@@ -34,6 +34,90 @@ def enrich(x):
     x['score']=((c>x.ma5)*25+(x.ma5>x.ma10)*20+(x.volume>=1.15*x.vol5_prev)*20+x.rsi14.between(45,75)*15+(c>=x.past20_high*0.97)*20).astype(int)
     return x
 
+
+def evaluate_entry_signal(frame):
+    """One-session-ahead research setup. This is a watch signal, never an order."""
+    x = enrich(frame)
+    if len(x) < 65:
+        return {"status": "WAIT", "label": "历史数据不足", "reasons": ["至少需要65根有效日线"]}
+    last, prev = x.iloc[-1], x.iloc[-2]
+    values = [last.ma5, last.ma10, prev.ma5, last.vol5_prev,
+              last.rsi14, last.atr14, last.past20_high]
+    if not all(np.isfinite(float(v)) for v in values):
+        return {"status": "WAIT", "label": "指标尚未就绪", "reasons": ["均线、RSI、ATR或成交量数据不足"]}
+    close = float(last.close)
+    atr = float(last.atr14)
+    vol_ratio = float(last.volume / last.vol5_prev) if last.vol5_prev > 0 else 0.0
+    high_ratio = close / float(last.past20_high) if last.past20_high > 0 else 0.0
+    checks = [
+        (close > float(last.ma5) and float(last.ma5) > float(last.ma10)
+         and float(last.ma5) > float(prev.ma5), "收盘价站上MA5，MA5高于MA10且向上"),
+        (vol_ratio >= 1.20, "成交量至少为前5日均量的1.2倍"),
+        (45 <= float(last.rsi14) <= 68, "RSI14处于45–68的动能区间"),
+        (0.97 <= high_ratio <= 1.02, "收盘价位于前20日高点下方3%至上方2%以内"),
+        (0 < atr / close <= 0.06, "ATR波动率不高于收盘价的6%"),
+    ]
+    passed = [reason for ok, reason in checks if ok]
+    failed = [reason for ok, reason in checks if not ok]
+    buy = not failed
+    return {
+        "status": "BUY_WATCH" if buy else "WAIT",
+        "label": "次日买入观察" if buy else "暂不买入",
+        "asof_date": str(last.date.date()) if hasattr(last.date, "date") else str(last.date),
+        "close": round(close, 3),
+        "volume_ratio": round(vol_ratio, 2),
+        "buy_low": round(close - 0.25 * atr, 3),
+        "buy_high": round(close + 0.25 * atr, 3),
+        "stop_reference": round(close - 1.5 * atr, 3),
+        "target_reference": round(close + 2.0 * atr, 3),
+        "valid_sessions": 1,
+        "reasons": passed if buy else failed,
+        "passed_count": len(passed),
+        "total_checks": len(checks),
+        "note": "收盘后生成的次日观察信号；次日跳空过大、流动性不足或行情过期时应放弃，不构成实际买单。",
+    }
+
+
+def evaluate_exit_signal(frame, cost, entry_date=None):
+    """Close-based simulated position management; all exits are next-session reviews."""
+    x = enrich(frame)
+    if len(x) < 65 or not np.isfinite(float(cost)) or float(cost) <= 0:
+        return {"status": "WAIT", "label": "历史数据不足", "reasons": ["无法可靠计算退出条件"]}
+    last = x.iloc[-1]
+    if not np.isfinite(float(last.atr14)) or not np.isfinite(float(last.ma5)) or not np.isfinite(float(last.ma10)):
+        return {"status": "WAIT", "label": "指标尚未就绪", "reasons": ["ATR或均线数据不足"]}
+    close = float(last.close)
+    atr = float(last.atr14)
+    cost = float(cost)
+    stop = cost - 1.5 * atr
+    target = cost + 2.0 * atr
+    held_bars = None
+    if entry_date:
+        dates = pd.to_datetime(x.date).dt.strftime("%Y-%m-%d")
+        held_bars = int((dates >= str(entry_date)[:10]).sum())
+        latest_date = str(last.date.date()) if hasattr(last.date, "date") else str(last.date)
+        if str(entry_date)[:10] >= latest_date:
+            return {"status": "HOLD_T1", "label": "T+1限制，暂不可卖", "stop_price": round(stop, 3),
+                    "target_price": round(target, 3), "held_bars": held_bars,
+                    "reasons": ["买入日尚未结束或尚无后续交易日"]}
+    if close <= stop:
+        status, label, reason = "SELL_STOP", "止损退出观察", "收盘价触及或跌破成本价减1.5倍ATR"
+    elif close >= target:
+        status, label, reason = "SELL_TARGET", "止盈退出观察", "收盘价达到成本价加2倍ATR"
+    elif close < float(last.ma5) or float(last.ma5) < float(last.ma10):
+        status, label, reason = "SELL_TREND", "趋势转弱退出观察", "收盘价跌破MA5或MA5跌破MA10"
+    elif held_bars is not None and held_bars >= 3:
+        status, label, reason = "SELL_TIME", "达到3日持有期限", "达到策略设定的3个交易日持有期限"
+    else:
+        status, label, reason = "HOLD", "继续观察持有", "止损、止盈、趋势退出和持有期限条件均未触发"
+    return {
+        "status": status, "label": label, "reason": reason,
+        "stop_price": round(stop, 3), "target_price": round(target, 3),
+        "held_bars": held_bars, "asof_date": str(last.date.date()) if hasattr(last.date, "date") else str(last.date),
+        "note": "依据最新完整日线收盘确认；卖出观察信号仅供下一交易时段复核，未考虑涨跌停、停牌和实际成交限制。",
+    }
+
+
 def backtest_one(x,code,fee=0.0003,stamp=0.0005,minfee=5,slip=0.001,maxhold=10,stop_atr=1.7):
     """Single-stock simulation: signal at close, next-open entry/exit, 100 shares.
     Models costs and T+1 direction, but NOT suspensions, limit-ups/downs or corporate actions.
