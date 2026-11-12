@@ -53,9 +53,26 @@
 <section class="details" id="watch"><div class="hrow"><h2>我的自选股</h2><span>仅存于本机</span></div><div class="card"><div class="formrow"><div class="field"><label for="watchCode">股票代码 / 名称</label><input id="watchCode" class="input" list="stockOptions" placeholder="输入代码或股票名称" autocomplete="off" /></div><button class="btn primary" id="watchAdd">添加</button><button class="btn" id="watchRefresh">刷新行情</button></div><p class="hint" id="watchNote">自选股只保存在本机。行情从公开全市场快照读取；新股票可直接输入代码或名称。</p><div id="watchList" class="empty"><b>暂无自选股</b>添加股票后，联网即可看到最近采集快照。</div></div></section>
 <section class="details" id="positions"><div class="hrow"><h2>模拟持仓</h2><span>手机浏览器私有数据</span></div><div class="market-notice">这里不会连接真实证券账户。仅使用本机记录的成本与公开行情快照估算盈亏，未扣交易费用，过期行情不得视作实时盈亏。清理浏览器数据可能丢失记录。</div><div class="card"><div class="formrow"><div class="field"><label for="posCode">股票代码 / 名称</label><input id="posCode" class="input" list="stockOptions" placeholder="000708 或 平安银行" autocomplete="off" /></div><div class="field"><label for="posQty">股数</label><input id="posQty" class="input" inputmode="numeric" type="number" min="1" step="1" placeholder="100" /></div><div class="field"><label for="posCost">成本/元</label><input id="posCost" class="input" type="number" min="0.001" step="0.01" placeholder="11.92" /></div><div class="field"><label for="posEntryDate">买入日期</label><input id="posEntryDate" class="input" type="date" /></div><button class="btn primary" id="posAdd">新增</button></div><div class="divider"></div><div id="posList" class="empty"><b>尚无模拟持仓</b>手动添加后保存到当前设备，不会上传到 GitHub。</div><div class="settings-row"><button class="btn small" id="exportPrivate">备份本机记录</button><label class="btn small" for="importPrivate">恢复本机备份</label><input type="file" id="importPrivate" accept=".json" style="display:none"/></div></div></section>
 <section class="details" id="backtest"><div class="hrow"><h2>历史模拟回测</h2><span>单股历史日线 · 模拟</span></div><div class="card"><div class="formrow"><div class="field"><label for="btCode">股票代码 / 名称</label><input id="btCode" class="input" list="stockOptions" placeholder="000708 或 平安银行" autocomplete="off" /></div><div class="field"><label for="btHold">最长持有</label><select class="input" id="btHold"><option value="1">1个交易日</option><option value="2">2个交易日</option><option value="3" selected>3个交易日</option></select></div><button class="btn primary" id="runBt">运行回测</button></div><p class="hint">V1.3短线规则：5项条件收盘确认→次日开盘落在观察区间才模拟买入；T+1后按1.5倍ATR止损、2倍ATR止盈、趋势转弱或持有期限退出。100股/笔，含滑点和费用假设；不模拟涨跌停、停牌及组合资金占用。历史表现不代表未来收益。</p></div><div id="btResults" class="card empty"><b>尚未运行回测</b>选择有至少65个有效交易日的股票，点击运行。</div><div class="market-notice">该回测统计的是单股独立交易，不是组合回测。逐笔盈亏曲线回撤也不是组合最大回撤；不应拿来作为全市场年化收益率。</div></section>
+<section class="details" id="tracker">
+ <div class="hrow"><h2>信号追踪与策略绩效</h2><span id="trackerAsOf">等待历史追踪数据</span></div>
+ <div class="market-notice" id="trackerNotice"><strong>信号历史尚未生成。</strong>下一次收盘数据任务完成后，将自动回溯已覆盖股票的买入观察信号并追踪后续表现。</div>
+ <div class="card">
+  <div class="formrow">
+   <div class="field"><label for="trackerHorizon">绩效观察周期</label><select class="input" id="trackerHorizon"><option value="1">买入后第1个可卖交易日</option><option value="2">买入后第2个可卖交易日</option><option value="3" selected>买入后第3个可卖交易日</option></select></div>
+   <div class="field"><label>统计口径</label><div class="readonly">次日开盘入场 · A股T+1</div></div>
+  </div>
+  <div class="fine" id="trackerCoverage">历史覆盖情况待同步</div>
+  <div class="metric-grid" id="trackerMetrics"><div class="metric"><small>已完成样本</small><strong>—</strong></div><div class="metric"><small>胜率</small><strong>—</strong></div><div class="metric"><small>平均收益</small><strong>—</strong></div><div class="metric"><small>连续亏损</small><strong>—</strong></div></div>
+ </div>
+ <div class="hrow"><h2>历史买入信号</h2><span id="trackerCount">—</span></div>
+ <div class="card">
+  <div class="scroll-x"><table class="mini-table"><thead><tr><th>信号日期 / 股票</th><th>收盘信号价</th><th>模拟入场</th><th>跟踪状态</th><th>本周期结果</th></tr></thead><tbody id="trackerRows"><tr><td colspan="5">等待追踪数据</td></tr></tbody></table></div>
+ </div>
+ <div class="market-notice">统计规则：收盘生成信号，次日开盘必须位于观察区间才入场；A股遵守T+1，最早从买入后的下一个交易日收盘评估。每笔按100股、佣金、卖出印花税及0.1%单边滑点模拟。多个信号可能重叠，因此事件序列回撤不是组合资金曲线。当前历史池覆盖不完整，且未纳入历史退市股，结果存在幸存者偏差。</div>
+</section>
 </main><footer class="footer">数据：BaoStock 历史日线 + 腾讯财经公开行情快照 · 仅供个人研究 · 不保证行情时效和准确性<br>无交易账户接入 · 无自动下单 · 本地持仓不上传</footer>
 </div>
-<nav class="sticky-nav" aria-label="导航"><button class="nav-btn active" data-tab="screen"><span class="ico">▤</span>每日选股</button><button class="nav-btn" data-tab="detail"><span class="ico">⌁</span>个股分析</button><button class="nav-btn" data-tab="watch"><span class="ico">☆</span>自选股</button><button class="nav-btn" data-tab="positions"><span class="ico">▣</span>模拟持仓</button><button class="nav-btn" data-tab="backtest"><span class="ico">▥</span>历史回测</button></nav>
+<nav class="sticky-nav" aria-label="导航"><button class="nav-btn active" data-tab="screen"><span class="ico">▤</span>每日选股</button><button class="nav-btn" data-tab="detail"><span class="ico">⌁</span>个股分析</button><button class="nav-btn" data-tab="watch"><span class="ico">☆</span>自选股</button><button class="nav-btn" data-tab="positions"><span class="ico">▣</span>模拟持仓</button><button class="nav-btn" data-tab="backtest"><span class="ico">▥</span>历史回测</button><button class="nav-btn" data-tab="tracker"><span class="ico">◷</span>信号追踪</button></nav>
 <datalist id="stockOptions"></datalist><div class="toast" id="toast" role="status"></div>
 <script>
 (()=>{'use strict';
@@ -63,6 +80,7 @@ const $=id=>document.getElementById(id), $$=s=>Array.from(document.querySelector
 const PREVIEW=window.__V12_PREVIEW__||null;
 if(PREVIEW)document.body.classList.add('demo');
 let screen={status:'uninitialized',rows:[],coverage_pct:0,eligible_count:0,covered_count:0,total_signals:0};
+let signalTracker={status:'uninitialized',events:[],metrics:{}};
 let market={status:'uninitialized',quotes:{}};let stockMaster={};let stockEntries=[];let stockMasterReady=false;let filter='signal';let activeTab='screen';let busy=false;
 const STORE='ashare_personal_v12_';
 function fromLocal(k,d){try{const r=localStorage.getItem(STORE+k);return r?JSON.parse(r):d}catch{return d}}
@@ -179,6 +197,40 @@ function renderScreen(){
  }).join(''):'<div class="empty"><b>'+(screen.status==='uninitialized'?'真实行情尚未初始化':'当前价格范围内没有匹配股票')+'</b>'+(screen.status==='partial'?'目前覆盖不足，不应将此当成全市场无信号。':'可调整价格范围或搜索股票代码/名称。')+'</div>';
  renderLivePanel();
 }
+function renderTracker(){
+ const data=signalTracker||{},h=String($('trackerHorizon')?.value||3),m=data.metrics?.[h]||{};
+ const u=data.universe||{};
+ $('trackerAsOf').textContent=data.asof?'截至 '+data.asof+' 收盘':'尚无追踪日期';
+ $('trackerCoverage').textContent=data.asof
+  ?'当前筛选池已追踪 '+(u.stocks_with_current_history||0)+' / '+(u.stocks_in_current_screen||0)+' 只；全市场候选池历史覆盖 '+(u.current_covered_count||0)+' / '+(u.current_candidate_count||0)+'（'+fmt(u.current_coverage_pct,1)+'%）'
+  :'历史覆盖情况待同步';
+ $('trackerNotice').innerHTML=data.status==='ready'
+  ?'<strong>历史信号已生成：</strong>回溯 '+(data.lookback_sessions||180)+' 个交易日，共记录 '+(data.signal_count||0)+' 次买入观察。统计仅适用于当前已覆盖股票。'
+  :'<strong>信号历史尚未生成。</strong>下一次收盘数据任务完成后，将自动回溯已覆盖股票的买入观察信号并追踪后续表现。';
+ const cards=[
+  ['历史信号',m.signal_count],
+  ['完成样本',m.completed_count],
+  ['胜率',m.win_rate_pct==null?'—':fmt(m.win_rate_pct,1)+'%'],
+  ['平均收益',m.average_return_pct==null?'—':signed(m.average_return_pct)+'%'],
+  ['平均盈利',m.average_profit_yuan==null?'—':signed(m.average_profit_yuan)+'元'],
+  ['平均亏损',m.average_loss_yuan==null?'—':fmt(m.average_loss_yuan)+'元'],
+  ['事件序列回撤',m.event_sequence_max_drawdown_pct==null?'—':fmt(m.event_sequence_max_drawdown_pct)+'%'],
+  ['最大连续亏损',m.max_consecutive_losses==null?'—':m.max_consecutive_losses+'次'],
+  ['Profit Factor',m.profit_factor==null?'—':fmt(m.profit_factor,2)]
+ ];
+ $('trackerMetrics').innerHTML=cards.map(([label,value])=>'<div class="metric"><small>'+label+'</small><strong>'+value+'</strong></div>').join('');
+ $('trackerCount').textContent=(data.signal_count||0)+' 次信号 · 展示最近80条';
+ const events=Array.isArray(data.events)?data.events.slice().sort((a,b)=>(b.signal_date||'').localeCompare(a.signal_date||'')||(a.code||'').localeCompare(b.code||'')).slice(0,80):[];
+ $('trackerRows').innerHTML=events.length?events.map(event=>{
+  const outcome=event.outcomes?.[h]||{};
+  const entryStatus=event.entry_status==='ENTERED'?'已模拟入场':event.entry_status==='SKIPPED_NO_CHASE'?'跳过：超出观察区间':'等待次日开盘';
+  const result=outcome.status==='COMPLETE'
+   ?'<span class="'+(Number(outcome.pnl_yuan)>0?'up':Number(outcome.pnl_yuan)<0?'down':'')+'">'+signed(Number(outcome.return_pct))+'% / '+signed(Number(outcome.pnl_yuan))+'元</span><div class="fine">退出 '+escapeHTML(outcome.exit_date||'')+'</div>'
+   :outcome.status==='SKIPPED'?'<span class="fine">未入场</span>':'<span class="tag caution">跟踪中</span>';
+  const entry=event.entry_status==='ENTERED'?fmt(Number(event.entry_price))+'元':event.entry_status==='SKIPPED_NO_CHASE'?'—':'待确认';
+  return '<tr><td><b>'+escapeHTML(event.name||event.code)+'</b><div class="fine">'+escapeHTML(event.code)+' · '+escapeHTML(event.signal_date||'')+'</div></td><td>'+fmt(Number(event.signal_close))+'元</td><td>'+entry+'<div class="fine">'+escapeHTML(event.entry_date||'')+'</div></td><td>'+entryStatus+'</td><td>'+result+'</td></tr>';
+ }).join(''):'<tr><td colspan="5">暂无历史买入信号；或当前历史覆盖尚未完成。</td></tr>';
+}
 function renderWatch(){
  const q=market.quotes||{},f=freshness();
  const coverage=market.requested_count?'全市场覆盖 '+market.count+'/'+market.requested_count+' ('+market.coverage_pct+'%)。':'全市场覆盖信息待同步。';
@@ -289,9 +341,9 @@ async function fetchQuotesWithFallback(){
  const q=await fetchJSON('./data/quotes.json');q.delivery='网页部署时的行情备份（可能滞后）';return q;
 }
 async function refreshMarket(){if(busy)return;busy=true;$('refreshAll').disabled=true;try{
- if(PREVIEW){market=PREVIEW.market;screen=PREVIEW.screen}
- else{const [mr,sr,sm]=await Promise.allSettled([fetchQuotesWithFallback(),fetchJSON('./data/screen.json'),loadStockMaster()]);if(mr.status==='fulfilled'&&mr.value.schema===1)market=mr.value;else toast('行情快照更新失败，保留上次数据显示');if(sr.status==='fulfilled'&&sr.value.schema===1)screen=sr.value;if(sm.status==='rejected')console.warn('Stock master unavailable:',sm.reason);}
- ['detailCode','watchCode','posCode','btCode'].forEach(id=>updateStockOptions($(id).value));showStatus();renderScreen();renderWatch();renderPositions();
+ if(PREVIEW){market=PREVIEW.market;screen=PREVIEW.screen;signalTracker=PREVIEW.signalTracker||signalTracker}
+ else{const [mr,sr,sm,tr]=await Promise.allSettled([fetchQuotesWithFallback(),fetchJSON('./data/screen.json'),loadStockMaster(),fetchJSON('./data/signal_tracker.json')]);if(mr.status==='fulfilled'&&mr.value.schema===1)market=mr.value;else toast('行情快照更新失败，保留上次数据显示');if(sr.status==='fulfilled'&&sr.value.schema===1)screen=sr.value;if(sm.status==='rejected')console.warn('Stock master unavailable:',sm.reason);if(tr.status==='fulfilled'&&tr.value.schema===1)signalTracker=tr.value;else console.warn('Signal tracker unavailable:',tr.reason);}
+ ['detailCode','watchCode','posCode','btCode'].forEach(id=>updateStockOptions($(id).value));showStatus();renderScreen();renderWatch();renderPositions();renderTracker();
  }finally{busy=false;$('refreshAll').disabled=false}}
 async function loadHistory(code){
  if(!validCode(code))throw Error('需要6位股票代码');
@@ -481,6 +533,7 @@ $('exportPrivate').addEventListener('click',()=>saveFile('ashare_private_backup.
 $('importPrivate').addEventListener('change',async e=>{try{const file=e.target.files[0];if(!file)return;const data=JSON.parse(await file.text());if(data.format!=='ASharePersonalV12')throw Error('备份版本不匹配');if(!confirm('将用备份替换当前本地自选和模拟持仓，是否继续？'))return;watch=(data.watch||[]).filter(validCode);positions=(data.positions||[]).filter(p=>validCode(p.code)&&p.cost>0&&Number.isInteger(p.qty)&&p.qty>0);saveLocal('watch',watch);saveLocal('positions',positions);renderWatch();renderPositions();toast('已恢复本地记录')}catch(e){toast('恢复失败：'+e.message)}finally{e.target.value=''}});
 $('posEntryDate').value ||= bjParts().date;
 $('runBt').addEventListener('click',runBacktest);
+$('trackerHorizon').addEventListener('change',renderTracker);
 refreshMarket();setInterval(()=>{if(document.visibilityState==='visible')refreshMarket()},5*60*1000);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshMarket()});
 setInterval(showStatus,60000);
