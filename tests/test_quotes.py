@@ -57,3 +57,6 @@ def test_quote_workflow_covers_market_sessions_and_close_snapshot():
     assert "570 <= m <= 690" in workflow
     assert "780 <= m <= 915" in workflow
     assert "t.weekday() < 5" in workflow
+    updater = (root / "scripts/update_quotes.py").read_text()
+    assert "Stale Tencent snapshot during market session" in updater
+    assert "fresh_quote_pct" in updater
