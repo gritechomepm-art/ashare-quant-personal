@@ -158,7 +158,7 @@ function rowsForScreen(){
 }
 function renderLivePanel(){
  const live=isTradingWindow()&&freshness().level==='ok'&&!PREVIEW;
- $('liveSignalTime').textContent=live?'行情快照 '+(market.fetched_at||'').slice(11,16)+' 北京时间':freshness().label;
+ $('liveSignalTime').textContent=live?'行情源 '+(market.quote_time_latest||'').slice(11,16)+' · 采集 '+(market.fetched_at||'').slice(11,16)+' · 页面每60秒刷新':freshness().label;
  const bounds=priceBounds();
  const buyAlerts=live&&bounds.valid?(screen.rows||[]).filter(row=>rowInPriceRange(row)).map(row=>({row,state:liveBuyState(row)})).filter(x=>x.state.status==='BUY').slice(0,12):[];
  $('liveBuyCount').textContent=live?buyAlerts.length+'只':'—';
