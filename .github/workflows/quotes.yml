@@ -1,5 +1,5 @@
 name: AShare full-market quote snapshots
-run-name: A-share quote refresh (\${{ github.event_name }})
+run-name: A-share quote refresh (${{ github.event_name }})
 
 on:
   push:
@@ -58,8 +58,8 @@ jobs:
           {
             echo "## A-share quote refresh"
             echo "- Result: skipped outside the configured trading session"
-            echo "- Beijing time: \${{ steps.clock.outputs.beijing_time }}"
-            echo "- Trigger: \${{ github.event_name }}"
+            echo "- Beijing time: ${{ steps.clock.outputs.beijing_time }}"
+            echo "- Trigger: ${{ github.event_name }}"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Fetch complete A-share market snapshot
         if: steps.clock.outputs.run == 'true'
