@@ -145,7 +145,7 @@ function resolveStockInput(value){
 function addWatch(input){
  const code=resolveStockInput(input);
  if(!code)return toast(stockMasterReady?'未找到该A股，请输入6位代码或完整股票名称':'请输入6位股票代码');
- if(!/^(?:0|3|6|4|8|92)\d{5}$/.test(code))return toast('目前支持沪深北A股六位代码');
+ if(!/^(?:0|3|4|6|8|92)/.test(code))return toast('目前支持沪深北A股六位代码');
  if(!watch.includes(code))watch.push(code);
  saveLocal('watch',watch);renderWatch();
  toast((stockMaster[code]?.name||market.quotes?.[code]?.name||code)+' 已加入本机自选');

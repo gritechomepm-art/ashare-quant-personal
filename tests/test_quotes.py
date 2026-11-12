@@ -46,3 +46,10 @@ def test_quote_batches_are_bounded():
 def test_partial_quote_response_does_not_create_fake_rows():
     result = parse_tencent_response(sample_quote(), ["000708", "002600"])
     assert list(result) == ["000708"]
+
+
+def test_quote_workflow_has_post_close_snapshot_window():
+    root = Path(__file__).resolve().parents[1]
+    workflow = (root / ".github/workflows/quotes.yml").read_text()
+    assert "7 7 * * 1-5" in workflow
+    assert "780 <= m <= 915" in workflow
