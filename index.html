@@ -98,6 +98,7 @@ function freshness(){if(PREVIEW)return {label:'合成演示 · 非真实行情',
  const t=Date.parse(sourceTime);if(market.status!=='ok'||!Number.isFinite(t))return {label:'暂无有效行情源时间',level:'danger',age:null};
  const minutes=(Date.now()-t)/60000;if(minutes< -5)return{label:'行情源时间异常',level:'danger',age:minutes};
  if(isTradingWindow()&&minutes>15)return{label:'行情源已过期 '+Math.round(minutes)+'分钟',level:'danger',age:minutes};
+ if(isTradingWindow()&&minutes>7)return{label:'行情源延迟 '+Math.round(minutes)+'分钟 · 暂停盘中预警',level:'warning',age:minutes};
  if(minutes>60*24)return{label:'旧行情源 · '+Math.floor(minutes/1440)+'天前',level:'danger',age:minutes};
  if(isTradingWindow())return{label:'行情源 '+(sourceTime.slice(11,16)||'')+' 北京时间',level:'ok',age:minutes};
  return{label:'非交易时段 · 最近行情源',level:'warning',age:minutes};}
@@ -111,7 +112,7 @@ function hasRecentQuote(q){
 }
 function isLiveQuote(q){
  const age=quoteAgeMinutes(q);
- return !PREVIEW&&market.status==='ok'&&isTradingWindow()&&!!q&&Number(q.price)>0&&age>=-5&&age<=15;
+ return !PREVIEW&&market.status==='ok'&&isTradingWindow()&&!!q&&Number(q.price)>0&&age>=-5&&age<=7;
 }
 function elapsedSessionFraction(){
  const m=bjParts().minutes;
@@ -167,7 +168,7 @@ function renderLivePanel(){
   ?'<div class="market-notice"><strong>策略尚未通过历史验证：</strong>3日组合模拟收益 '+signed(p3.total_return_pct)+'%，最大回撤 '+fmt(p3.max_drawdown_pct)+'%。以下信号只作研究观察，不应直接作为实盘买入依据。</div>'
   :'';
  $('liveBuySignals').innerHTML=strategyWarning+(!live
-  ?'<div class="fine">非交易时段、行情过期或未取得有效报价。盘中时段为北京时间 09:30–11:30、13:00–15:00；行情快照约5分钟采集一次，不是逐笔行情。</div>'
+  ?'<div class="fine">非交易时段、行情过期或未取得有效报价。盘中时段为北京时间 09:30–11:30、13:00–15:00；行情快照约5分钟尝试采集一次；报价超过7分钟暂停盘中预警，不是逐笔行情。</div>'
   :buyAlerts.length?buyAlerts.map(x=>'<div class="live-alert"><div class="live-alert-main"><div class="live-alert-title">'+escapeHTML(x.row.name)+' <span class="tag good">盘中买入预警</span></div><div class="live-alert-meta">'+x.row.code+' · 时段量比 '+fmt(x.state.relativeVolume,2)+' · 区间 '+fmt(x.row.buy_low)+'–'+fmt(x.row.buy_high)+' 元</div></div><div class="live-alert-price">'+fmt(x.state.price)+'元<button class="btn small" data-detail="'+x.row.code+'" style="display:block;margin-top:5px">分析</button></div></div>').join('')
   :(elapsedSessionFraction()<.125?'<div class="fine">开盘前30分钟，先观察价格与均线；成交量样本尚不稳定，暂不发出盘中买入预警。</div>':'<div class="fine">当前没有股票同时满足日线买入条件、盘中价格区间、均线和成交量确认。</div>'));
  const sellAlerts=liveSellAlerts.filter(x=>x.live);
