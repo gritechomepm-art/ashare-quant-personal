@@ -30,3 +30,7 @@ jobs:
           Path("/tmp/ashare-app.js").write_text("\n".join(scripts), encoding="utf-8")
           PY
           node --check /tmp/ashare-app.js
+      - name: Test Cloudflare quote Worker API
+        run: node --test realtime-worker/test/*.test.mjs
+      - name: Validate Cloudflare Worker syntax
+        run: node --check realtime-worker/src/index.mjs
