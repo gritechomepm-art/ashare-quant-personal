@@ -66,7 +66,7 @@
  </div>
  <div class="hrow"><h2>历史买入信号</h2><span id="trackerCount">—</span></div>
  <div class="card">
-  <div class="scroll-x"><table class="mini-table"><thead><tr><th>信号日期 / 股票</th><th>信号参考价</th><th>模拟入场</th><th>跟踪状态</th><th>本周期结果</th></tr></thead><tbody id="trackerRows"><tr><td colspan="5">等待追踪数据</td></tr></tbody></table></div>
+  <div class="scroll-x"><table class="mini-table"><thead><tr><th>信号日期 / 股票</th><th>信号参考价</th><th>入场 / 预警参考</th><th>跟踪状态</th><th>本周期结果</th></tr></thead><tbody id="trackerRows"><tr><td colspan="5">等待追踪数据</td></tr></tbody></table></div>
  </div>
  <div class="market-notice">统计规则：信号价默认过滤3–100元；收盘生成信号，次日开盘必须位于观察区间才入场；A股遵守T+1，最早从买入后的下一个交易日收盘评估。上方胜率和平均收益是独立信号事件统计；组合净收益与最大回撤另按100万元初始资金、最多10只持仓、每笔使用组合权益10%、整手100股模拟，按固定持有期退出，不包含止损止盈；含佣金、卖出印花税及0.1%单边滑点。未模拟涨跌停、停牌和历史退市股，结果仍存在幸存者偏差。</div>
 </section>
@@ -247,11 +247,11 @@ function renderTracker(){
  $('trackerRows').innerHTML=events.length?events.map(event=>{
   const outcome=event.outcomes?.[h]||{};
   const portfolioStatus=event.portfolio_status?.[h];
-  const entryStatus=portfolioStatus==='ENTERED'?'组合已入场':portfolioStatus==='SKIPPED_CAPACITY'?'跳过：仓位已满':portfolioStatus==='SKIPPED_DUPLICATE'?'跳过：重复持仓':event.entry_status==='ENTERED'?'事件已入场':event.entry_status==='SKIPPED_NO_CHASE'?'跳过：超出观察区间':'等待次日开盘';
+  const entryStatus=event.signal_type==="INTRADAY_WARNING"?"预警已记录":portfolioStatus==='ENTERED'?'组合已入场':portfolioStatus==='SKIPPED_CAPACITY'?'跳过：仓位已满':portfolioStatus==='SKIPPED_DUPLICATE'?'跳过：重复持仓':event.entry_status==='ENTERED'?'事件已入场':event.entry_status==='SKIPPED_NO_CHASE'?'跳过：超出观察区间':'等待次日开盘';
   const result=outcome.status==='COMPLETE'
    ?'<span class="'+(Number(outcome.pnl_yuan)>0?'up':Number(outcome.pnl_yuan)<0?'down':'')+'">'+signed(Number(outcome.return_pct))+'% / '+signed(Number(outcome.pnl_yuan))+'元</span><div class="fine">退出 '+escapeHTML(outcome.exit_date||'')+'</div>'
    :outcome.status==='SKIPPED'?'<span class="fine">未入场</span>':'<span class="tag caution">跟踪中</span>';
-  const entry=event.entry_status==='ENTERED'?fmt(Number(event.entry_price))+'元':event.entry_status==='SKIPPED_NO_CHASE'?'—':'待确认';
+  const entry=event.signal_type==="INTRADAY_WARNING"?'预警 '+fmt(reference)+'元':event.entry_status==='ENTERED'?fmt(Number(event.entry_price))+'元':event.entry_status==='SKIPPED_NO_CHASE'?'—':'待确认';
   const signalLabel=event.signal_label||(event.signal_type==="INTRADAY_WARNING"?"盘中预警":"收盘确认");
   const signalTime=event.signal_time?' · '+String(event.signal_time).slice(11,16):'';
   const reference=Number(event.reference_price??event.signal_close);
