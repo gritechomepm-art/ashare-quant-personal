@@ -6,7 +6,7 @@ from pathlib import Path
 
 import baostock as bs
 
-from core import ROOT, atomic_json, load_json, now_cst, score_history, normalize_stock_master
+from core import ROOT, atomic_json, load_json, now_cst, score_history, normalize_stock_master, append_bar_from_quote, is_final_quote_for_day
 from probe_baostock import checked_frame
 
 FIELDS = "date,code,open,high,low,close,volume,amount,tradestatus,isST"
@@ -47,7 +47,7 @@ def normalize_history(frame, code, name, day):
             "last_amount_cny": amounts[day]}
 
 
-def collect(root=ROOT, max_new=300, max_seconds=1000):
+def collect(root=ROOT, max_new=300, max_seconds=1000, quotes_file=None):
     root = Path(root)
     now = now_cst()
     cutoff = now.date() if (now.hour, now.minute) >= (17, 30) else now.date() - timedelta(days=1)
@@ -80,6 +80,9 @@ def collect(root=ROOT, max_new=300, max_seconds=1000):
         active.sort(key=lambda pair: (prioritize.get(pair[0], 9), pair[0]))
         path = root/"history"
         path.mkdir(parents=True, exist_ok=True)
+        quote_doc = load_json(quotes_file or (root/"quotes.json"), {})
+        quote_map = quote_doc.get("quotes", {}) if quote_doc.get("status") == "ok" else {}
+        updated_existing = 0
         checked = 0
         missing = []
         stale = []
@@ -87,6 +90,20 @@ def collect(root=ROOT, max_new=300, max_seconds=1000):
             code = full[3:]
             cached = load_json(path/f"{code}.json", {})
             bars = cached.get("bars", [])
+            if len(bars) >= 65 and cached.get("asof") != asof:
+                quote = quote_map.get(code)
+                if quote and is_final_quote_for_day(quote, asof):
+                    try:
+                        ok, updated = append_bar_from_quote(cached, quote, asof)
+                        if ok:
+                            updated["code"] = code
+                            updated["name"] = name
+                            atomic_json(path/f"{code}.json", updated)
+                            cached = updated
+                            bars = updated["bars"]
+                            updated_existing += 1
+                    except Exception as exc:
+                        failures.append([code, "close quote: " + str(exc)[:80]])
             if len(bars) >= 65 and cached.get("asof") == asof:
                 continue
             if len(bars) >= 65:
@@ -156,5 +173,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--max-new", type=int, default=300)
     parser.add_argument("--max-seconds", type=int, default=1000)
+    parser.add_argument("--quotes-file", default=None)
     args = parser.parse_args()
-    collect(max_new=args.max_new, max_seconds=args.max_seconds)
+    collect(max_new=args.max_new, max_seconds=args.max_seconds, quotes_file=args.quotes_file)

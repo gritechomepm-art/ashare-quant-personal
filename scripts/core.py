@@ -78,6 +78,12 @@ def normalize_stock_master(frame, asof):
     return {"schema": 1, "source": "BaoStock query_all_stock", "asof": asof,
             "count": len(stocks), "stocks": stocks}
 
+def is_final_quote_for_day(quote, session_date):
+    """Only use a quote carrying an explicit 15:00-or-later timestamp for EOD bars."""
+    stamp = quote.get("quote_time") if isinstance(quote, dict) else None
+    return (isinstance(stamp, str) and len(stamp) >= 16
+            and stamp[:10] == session_date and stamp[11:16] >= "15:00")
+
 def norm_hist(frame,code,asof=None):
     cols={'日期':'date','开盘':'open','最高':'high','最低':'low','收盘':'close','成交量':'volume'}
     data=frame.rename(columns=cols)
@@ -148,6 +154,8 @@ def append_bar_from_quote(history,quote,session_date):
     bar={'date':session_date,'open':o,'high':high,'low':low,'close':price,'volume':int(quote['volume_lots'])}
     if bars and bars[-1]['date']==session_date:bars[-1]=bar
     else:bars.append(bar)
+    amount = float(price) * int(quote['volume_lots']) * 100
     return True,{'schema':1,'code':history.get('code',''),
-                 'source':'AKShare hist + close snapshot (不复权)',
-                 'adjust':'none','asof':session_date,'bars':bars[-260:]}
+                 'source':'historical daily bars + verified close quote (不复权)',
+                 'adjust':'none','asof':session_date,'bars':bars[-260:],
+                 'last_amount_cny':round(amount,2)}

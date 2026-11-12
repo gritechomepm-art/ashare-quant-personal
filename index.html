@@ -78,7 +78,8 @@ function renderScreen(){const q=market.quotes||{},count=market.count||Object.key
 }
 function renderWatch(){
  const q=market.quotes||{},f=freshness();
- $('watchNote').textContent=(PREVIEW?'演示数据，非真实行情。':'行情快照：'+(market.delivery||'公开全市场快照')+'；来源：'+(market.source||'待初始化')+'；'+f.label+'。')+'自选股只保存在当前设备。行情不是交易所逐笔推送。';
+ const coverage=market.requested_count?'全市场覆盖 '+market.count+'/'+market.requested_count+' ('+market.coverage_pct+'%)。':'全市场覆盖信息待同步。';
+ $('watchNote').textContent=(PREVIEW?'演示数据，非真实行情。':'行情快照：'+(market.delivery||'公开全市场快照')+'；来源：'+(market.source||'待初始化')+'；'+f.label+'。')+coverage+'自选股只保存在当前设备。行情不是交易所逐笔推送。';
  $('watchList').className=watch.length?'':'empty';
  $('watchList').innerHTML=watch.length?watch.map(code=>{
   const r=q[code],meta=stockMaster[code]||{},name=r?.name||meta.name||'名称待同步';

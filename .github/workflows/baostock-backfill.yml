@@ -36,8 +36,17 @@ jobs:
           python -m pip install 'baostock==0.9.4'
       - name: Run existing tests
         run: pytest -q
-      - name: Bootstrap bounded historical batch with explicit partial coverage
-        run: python scripts/ingest_baostock.py --max-new 300 --max-seconds 1000
+      - name: Fetch latest public quote-feed snapshot
+        shell: bash
+        run: |
+          if git ls-remote --exit-code --heads origin quote-feed >/dev/null 2>&1; then
+            git fetch --depth=1 origin quote-feed
+            git show FETCH_HEAD:data/quotes.json > /tmp/ashare-quote-feed.json
+          else
+            echo '{"schema":1,"status":"uninitialized","quotes":{}}' > /tmp/ashare-quote-feed.json
+          fi
+      - name: Bootstrap history and update cached bars from verified close quotes
+        run: python scripts/ingest_baostock.py --quotes-file /tmp/ashare-quote-feed.json --max-new 300 --max-seconds 1000
       - name: Commit public history and partial screen only
         run: |
           git config user.name 'github-actions[bot]'

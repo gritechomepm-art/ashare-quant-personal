@@ -1,7 +1,7 @@
 from pathlib import Path
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from core import norm_spot,norm_hist,append_bar_from_quote,make_screen,atomic_json,normalize_stock_master
+from core import norm_spot,norm_hist,append_bar_from_quote,make_screen,atomic_json,normalize_stock_master,is_final_quote_for_day
 import pandas as pd
 import pytest
 
@@ -32,6 +32,7 @@ def test_history_and_score_coverage(tmp_path):
            'amount_cny':80_000_000}
     ok,h=append_bar_from_quote({'schema':1,'code':'000708','bars':bars},quote,'2026-11-10')
     assert ok and len(h['bars'])==90
+    assert h['last_amount_cny'] == round(quote['price'] * quote['volume_lots'] * 100, 2)
     root=tmp_path/'data'
     atomic_json(root/'history'/'000708.json',h)
     x=make_screen({'quotes':{'000708':quote}},root,asof='2026-11-10')
@@ -71,3 +72,9 @@ def test_full_stock_master_contains_exchange_and_names():
     assert master["count"] == 1500
     assert master["stocks"]["000708"]["market"] == "SZ"
     assert master["stocks"]["600000"]["market"] == "SH"
+
+
+def test_final_quote_requires_same_day_after_close():
+    assert is_final_quote_for_day({"quote_time": "2026-11-11T15:00:00+08:00"}, "2026-11-11")
+    assert not is_final_quote_for_day({"quote_time": "2026-11-11T14:57:00+08:00"}, "2026-11-11")
+    assert not is_final_quote_for_day({"quote_time": "2026-11-10T15:00:00+08:00"}, "2026-11-11")

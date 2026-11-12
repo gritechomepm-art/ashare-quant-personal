@@ -1,8 +1,6 @@
 name: AShare daily EOD screening
 on:
-  schedule:
-    # 16:35 Asia/Shanghai = 08:35 UTC, weekdays; Python checks A-share calendar.
-    - cron: '35 8 * * 1-5'
+  # Scheduled EOD updates now run in baostock-backfill.yml using verified close snapshots.
   workflow_dispatch:
 permissions:
   contents: write
