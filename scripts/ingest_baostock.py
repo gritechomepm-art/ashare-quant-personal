@@ -76,7 +76,7 @@ def collect(root=ROOT, max_new=300, max_seconds=1000, quotes_file=None):
             raise ValueError(f"Invalid partial universe: {len(names)}")
         active = [(full, name) for full, name in names.items()
                   if "ST" not in name.upper() and "退" not in name]
-        prioritize = {"sz.000708": 0, "sz.002600": 1}
+        prioritize = {"sz.002532": 0, "sz.000708": 1, "sz.002600": 2}  # 002532: public history availability QA
         active.sort(key=lambda pair: (prioritize.get(pair[0], 9), pair[0]))
         path = root/"history"
         path.mkdir(parents=True, exist_ok=True)
