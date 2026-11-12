@@ -48,8 +48,12 @@ def test_partial_quote_response_does_not_create_fake_rows():
     assert list(result) == ["000708"]
 
 
-def test_quote_workflow_has_post_close_snapshot_window():
+def test_quote_workflow_covers_market_sessions_and_close_snapshot():
     root = Path(__file__).resolve().parents[1]
     workflow = (root / ".github/workflows/quotes.yml").read_text()
+    # GitHub cron is UTC; 01:00-03:59 and 05:00-07:59 cover
+    # Beijing morning/afternoon sessions, including the 15:07 close snapshot.
     assert "*/5 1-3,5-7 * * 1-5" in workflow
+    assert "570 <= m <= 690" in workflow
     assert "780 <= m <= 915" in workflow
+    assert "t.weekday() < 5" in workflow
