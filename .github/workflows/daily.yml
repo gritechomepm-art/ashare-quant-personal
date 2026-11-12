@@ -24,6 +24,8 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Collect close and incrementally bootstrap history
         run: python scripts/update_daily.py --max-new 300 --max-seconds 1300
+      - name: Build historical signal outcome tracker
+        run: python scripts/build_signal_tracker.py --lookback-sessions 180
       - name: Commit only public EOD data
         run: |
           git config user.name 'github-actions[bot]'
