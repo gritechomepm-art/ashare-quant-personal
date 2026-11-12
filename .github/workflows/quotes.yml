@@ -1,4 +1,4 @@
-name: AShare full-market quote snapshots
+name: AShare opportunity quote snapshots
 run-name: A-share quote refresh (${{ github.event_name }})
 
 on:
@@ -10,7 +10,8 @@ on:
       - 'scripts/record_intraday_signals.py'
       - 'tests/test_intraday_signal_recorder.py'
       - 'tests/test_quotes.py'
-      - 'data/stocks.json'
+      - 'data/screen.json'
+      - 'tests/test_opportunity_pool.py'
   schedule:
     # UTC 01:00-03:59 and 05:00-07:59 = Beijing 09:00-11:59 and 13:00-15:59.
     # GitHub schedule is best-effort; the market-session guard is authoritative.
@@ -71,7 +72,7 @@ jobs:
         run: |
           cp scripts/record_intraday_signals.py /tmp/ashare-record-intraday.py
           cp data/screen.json /tmp/ashare-screen.json
-      - name: Fetch complete A-share market snapshot
+      - name: Fetch screened opportunity watch-pool snapshot
         if: steps.clock.outputs.run == 'true'
         run: python scripts/update_quotes.py --output /tmp/ashare-latest-quotes.json
       - name: Validate and summarize fetched snapshot
@@ -97,9 +98,10 @@ jobs:
               f.write(f"- Trigger: {os.environ.get('GITHUB_EVENT_NAME', 'unknown')}\n")
               f.write(f"- Source quote time (Beijing): {p.get('quote_time_latest')}\n")
               f.write(f"- Collected at (Beijing): {p.get('fetched_at')}\n")
-              f.write(f"- Coverage: {p.get('count')}/{p.get('requested_count')} ({p.get('coverage_pct')}%)\n")
+              f.write(f"- Opportunity pool quote coverage (not all A-shares): {p.get('count')}/{p.get('requested_count')} ({p.get('coverage_pct')}%)\n")
               f.write(f"- Fresh quotes: {p.get('fresh_quote_count')} ({p.get('fresh_quote_pct')}%)\n")
               f.write(f"- Failed batches: {p.get('failed_chunk_count')}\n")
+              f.write(f"- Screening source: {p.get('universe_source')}\n")
           PY
       - name: Publish rolling public quote-feed snapshot
         if: steps.clock.outputs.run == 'true'
