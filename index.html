@@ -240,6 +240,8 @@ async function renderPositions(){
      label='持有期限退出预警';reason='已达到买入日之后第3个交易日，按策略评估退出。';tag='caution';
      alerts.push({code:p.code,name:r?.name||meta.name||p.code,price:current,label,reason,live:true});
     }
+   }else if(t1Unknown){
+    label='买入日期缺失 · T+1无法核验';reason='请补录买入日期；未核验T+1前不提供卖出结论。';tag='caution';
    }else if(t1Locked){
     label='T+1限制 · 暂不可卖';reason='买入日为今天或尚无后续交易日，下一交易日再判断卖出条件。';tag='caution';
    }else if(hitStop){
