@@ -450,6 +450,39 @@ def build_tracker(root=ROOT, lookback_sessions=180):
         for code, bars in bars_by_code.items()
     }
     known_ids = {event.get("id") for event in events}
+    # Preserve previously observed close-confirm signals even after the rolling
+    # historical lookback/window or screen membership changes. No future data
+    # is invented when archived bars are no longer available.
+    previous_payload = load_json(root / "signal_tracker.json", {}) or {}
+    for old in previous_payload.get("events", []):
+        if old.get("signal_type", "CLOSE_CONFIRM") != "CLOSE_CONFIRM":
+            continue
+        code = str(old.get("code", ""))
+        signal_date = str(old.get("signal_date", ""))[:10]
+        if len(code) != 6 or not signal_date or signal_date > asof:
+            continue
+        event_id = "CLOSE_CONFIRM|" + code + "|" + signal_date
+        if event_id in known_ids:
+            continue
+        archived = dict(old)
+        archived["id"] = event_id
+        archived["signal_type"] = "CLOSE_CONFIRM"
+        archived["signal_label"] = "收盘确认"
+        archived["reference_price"] = archived.get("reference_price", archived.get("signal_close"))
+        if not archived.get("forward_outcomes"):
+            hist = load_json(root / "history" / (code + ".json"), {}) or {}
+            bars = hist.get("bars", [])
+            dates = [str(bar["date"])[:10] for bar in bars]
+            if signal_date in dates:
+                archived["forward_outcomes"] = forward_observations(
+                    bars, dates.index(signal_date), archived["reference_price"])
+            else:
+                archived["forward_outcomes"] = {
+                    str(h): {"status": "UNAVAILABLE", "reason": "对应历史日线已不在缓存中"}
+                    for h in HORIZONS
+                }
+        events.append(archived)
+        known_ids.add(event_id)
     for raw in intraday_events:
         code = str(raw.get("code", ""))
         signal_date = str(raw.get("signal_date", ""))[:10]
@@ -524,6 +557,8 @@ def build_tracker(root=ROOT, lookback_sessions=180):
         "forward_metrics": forward_metrics,
         "portfolio": portfolio,
         "events": events[-20000:],
+        "retained_event_count": min(len(events), 20000),
+        "event_retention_note": "当前页面仅保留最新20000条事件；历史回溯窗口180日，不保证完整上市以来数据。",
         "warning": [
             "当前统计只覆盖本次已成功获取且截至最新收盘日的股票，不代表完整历史A股成分股。",
             "使用当前股票池回溯历史信号，未包含历史退市股及历史成分变动，存在幸存者偏差。",
