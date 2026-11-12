@@ -54,10 +54,10 @@ test('CORS restricts untrusted website origin', async () => {
 });
 
 test('invalid and giant code batches are rejected before outbound requests', async () => {
-  const a = await handle(new Request('https://worker.example/v1/quotes?codes=000001,ABC'));
+  const a = await handle(new Request('https://worker.example/v1/quotes?codes=000001,ABC', {headers:{Origin:ORIGIN}}));
   assert.equal(a.status, 400);
   const b = await handle(new Request('https://worker.example/v1/quotes?codes=' +
-    Array.from({length: 51}, (_,i)=>String(600000+i)).join(',')));
+    Array.from({length: 51}, (_,i)=>String(600000+i)).join(','), {headers:{Origin:ORIGIN}}));
   assert.equal(b.status, 400);
 });
 
@@ -88,10 +88,16 @@ test('provider failure is surfaced rather than inventing or reusing prices', asy
   const oldFetch=globalThis.fetch;
   try {
     globalThis.fetch=async ()=>{throw new Error('blocked');};
-    const r=await handle(new Request('https://worker.example/v1/quotes?codes=603217'));
+    const r=await handle(new Request('https://worker.example/v1/quotes?codes=603217', {headers:{Origin:ORIGIN}}));
     assert.equal(r.status, 503);
     assert.equal((await r.json()).error,'provider_unavailable');
   } finally {
     globalThis.fetch=oldFetch;
   }
+});
+
+test('missing browser origin cannot use public quote endpoint', async () => {
+  const r=await handle(new Request('https://worker.example/v1/quotes?codes=603217'));
+  assert.equal(r.status,403);
+  assert.equal((await r.json()).error,'origin_required');
 });
