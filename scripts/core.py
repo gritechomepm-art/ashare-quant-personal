@@ -141,7 +141,7 @@ def make_screen(quotes_payload,root=ROOT,asof=None):
         except Exception as exc:
             failed.append({'code':code,'reason':str(exc)[:70]});continue
         if row is not None:ready+=1;ranked.append(row)
-    ranked.sort(key=lambda r:(r['signal'],r['score'],r['code']),reverse=True)
+    ranked.sort(key=lambda r:(r.get('entry_signal',False),r['score'],r['code']),reverse=True)
     coverage=round(ready/len(eligible)*100,2) if eligible else 0
     status='complete' if len(eligible)>0 and ready==len(eligible) else 'partial'
     return {'schema':1,'status':status,
