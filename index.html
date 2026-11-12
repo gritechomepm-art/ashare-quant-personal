@@ -43,9 +43,9 @@
  <p class="fine" id="priceFilterNote">按最新可用行情快照价格过滤；没有可用快照时按最近完整收盘价过滤。价格范围保存在本机。</p>
 </div>
 <div class="hrow"><h2>观察清单</h2><span id="listTotal">0只</span></div>
-<div class="subtabs"><button class="filter active" id="filterSignals" data-filter="signal">满足策略</button><button class="filter" data-filter="all" id="filterAll">按评分查看</button></div>
+<div class="subtabs"><button class="filter active" id="filterAll" data-filter="all">候选股评分</button><button class="filter" id="filterSignals" data-filter="signal">收盘确认信号</button></div>
 <div class="card"><input id="stockSearch" class="input" placeholder="搜索股票代码或名称" autocomplete="off" /><div id="screenList" class="empty"><b>尚无股票评分</b>等待真实日线数据完成初始化。</div></div>
-<div class="market-notice">研究评分来自原 Python V1 引擎（MA5、MA10、RSI、ATR、成交量等）。收盘确认后仅表示下一交易日观察；不保证买卖可成交、不预测涨跌。</div>
+<div class="market-notice">默认按评分展示已完成计算的候选股；切换「收盘确认信号」仅查看正式满足全部日线买入条件的股票。研究评分来自原 Python V1 引擎（MA5、MA10、RSI、ATR、成交量等）。当前筛选覆盖不完整，未覆盖股票不代表没有机会；收盘确认仅表示下一交易日观察，不保证买卖可成交。</div>
 </section>
 <section class="details" id="detail"><div class="hrow"><h2>个股分析</h2><span>日K为历史收盘，快照另行展示</span></div>
 <div class="card"><div class="formrow"><div class="field"><label for="detailCode">股票代码 / 名称</label><input id="detailCode" class="input" list="stockOptions" placeholder="例如 000708 或 平安银行" autocomplete="off"/></div><button class="btn primary" id="analyzeCode">分析</button><button class="btn soft" id="detailStar">☆ 自选</button></div><div class="divider"></div><div id="detailContent" class="empty"><b>输入股票代码</b>点击分析，读取云端历史日线；没有完整数据会如实提示。</div></div>
@@ -81,7 +81,7 @@ const PREVIEW=window.__V12_PREVIEW__||null;
 if(PREVIEW)document.body.classList.add('demo');
 let screen={status:'uninitialized',rows:[],coverage_pct:0,eligible_count:0,covered_count:0,total_signals:0};
 let signalTracker={status:'uninitialized',events:[],metrics:{}};
-let market={status:'uninitialized',quotes:{}};let stockMaster={};let stockEntries=[];let stockMasterReady=false;let filter='signal';let activeTab='screen';let busy=false;
+let market={status:'uninitialized',quotes:{}};let stockMaster={};let stockEntries=[];let stockMasterReady=false;let filter='all';let activeTab='screen';let busy=false;
 const STORE='ashare_personal_v12_';
 function fromLocal(k,d){try{const r=localStorage.getItem(STORE+k);return r?JSON.parse(r):d}catch{return d}}
 function saveLocal(k,v){try{localStorage.setItem(STORE+k,JSON.stringify(v));return true}catch{toast('本机无法保存：请检查浏览器设置');return false}}

@@ -61,3 +61,12 @@ def test_quote_workflow_covers_market_sessions_and_close_snapshot():
     updater = (root / "scripts/update_quotes.py").read_text()
     assert "Stale Tencent snapshot during market session" in updater
     assert "fresh_quote_pct" in updater
+
+
+def test_watchlist_defaults_to_score_ranked_candidates():
+    root = Path(__file__).resolve().parents[1]
+    html = (root / "index.html").read_text(encoding="utf-8")
+    assert "let filter='all';" in html
+    assert '<button class="filter active" id="filterAll" data-filter="all">候选股评分</button>' in html
+    assert '<button class="filter" id="filterSignals" data-filter="signal">收盘确认信号</button>' in html
+    assert "(filter==='all'||s.entry_signal===true||(s.entry_signal===undefined&&s.signal===true))" in html
