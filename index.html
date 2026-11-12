@@ -53,7 +53,7 @@
 <section class="details" id="watch"><div class="hrow"><h2>我的自选股</h2><span>仅存于本机</span></div><div class="card"><div class="formrow"><div class="field"><label for="watchCode">股票代码 / 名称</label><input id="watchCode" class="input" list="stockOptions" placeholder="输入代码或股票名称" autocomplete="off" /></div><button class="btn primary" id="watchAdd">添加</button><button class="btn" id="watchRefresh">刷新行情</button></div><p class="hint" id="watchNote">自选股只保存在本机。行情从公开全市场快照读取；新股票可直接输入代码或名称。</p><div id="watchList" class="empty"><b>暂无自选股</b>添加股票后，联网即可看到最近采集快照。</div></div></section>
 <section class="details" id="positions"><div class="hrow"><h2>模拟持仓</h2><span>手机浏览器私有数据</span></div><div class="market-notice">这里不会连接真实证券账户。仅使用本机记录的成本与公开行情快照估算盈亏，未扣交易费用，过期行情不得视作实时盈亏。清理浏览器数据可能丢失记录。</div><div class="card"><div class="formrow"><div class="field"><label for="posCode">股票代码 / 名称</label><input id="posCode" class="input" list="stockOptions" placeholder="000708 或 平安银行" autocomplete="off" /></div><div class="field"><label for="posQty">股数</label><input id="posQty" class="input" inputmode="numeric" type="number" min="1" step="1" placeholder="100" /></div><div class="field"><label for="posCost">成本/元</label><input id="posCost" class="input" type="number" min="0.001" step="0.01" placeholder="11.92" /></div><div class="field"><label for="posEntryDate">买入日期</label><input id="posEntryDate" class="input" type="date" /></div><button class="btn primary" id="posAdd">新增</button></div><div class="divider"></div><div id="posList" class="empty"><b>尚无模拟持仓</b>手动添加后保存到当前设备，不会上传到 GitHub。</div><div class="settings-row"><button class="btn small" id="exportPrivate">备份本机记录</button><label class="btn small" for="importPrivate">恢复本机备份</label><input type="file" id="importPrivate" accept=".json" style="display:none"/></div></div></section>
 <section class="details" id="backtest"><div class="hrow"><h2>历史模拟回测</h2><span>单股历史日线 · 模拟</span></div><div class="card"><div class="formrow"><div class="field"><label for="btCode">股票代码 / 名称</label><input id="btCode" class="input" list="stockOptions" placeholder="000708 或 平安银行" autocomplete="off" /></div><div class="field"><label for="btHold">最长持有</label><select class="input" id="btHold"><option value="1">1个交易日</option><option value="2">2个交易日</option><option value="3" selected>3个交易日</option></select></div><button class="btn primary" id="runBt">运行回测</button></div><p class="hint">V1.3短线规则：5项条件收盘确认→次日开盘落在观察区间才模拟买入；T+1后按1.5倍ATR止损、2倍ATR止盈、趋势转弱或持有期限退出。100股/笔，含滑点和费用假设；不模拟涨跌停、停牌及组合资金占用。历史表现不代表未来收益。</p></div><div id="btResults" class="card empty"><b>尚未运行回测</b>选择有至少65个有效交易日的股票，点击运行。</div><div class="market-notice">该回测统计的是单股独立交易，不是组合回测。逐笔盈亏曲线回撤也不是组合最大回撤；不应拿来作为全市场年化收益率。</div></section>
-</main><footer class="footer">数据：AKShare / 东方财富公开接口 · 仅供个人研究 · 不保证行情时效和准确性<br>无交易账户接入 · 无自动下单 · 本地持仓不上传</footer>
+</main><footer class="footer">数据：BaoStock 历史日线 + 腾讯财经公开行情快照 · 仅供个人研究 · 不保证行情时效和准确性<br>无交易账户接入 · 无自动下单 · 本地持仓不上传</footer>
 </div>
 <nav class="sticky-nav" aria-label="导航"><button class="nav-btn active" data-tab="screen"><span class="ico">▤</span>每日选股</button><button class="nav-btn" data-tab="detail"><span class="ico">⌁</span>个股分析</button><button class="nav-btn" data-tab="watch"><span class="ico">☆</span>自选股</button><button class="nav-btn" data-tab="positions"><span class="ico">▣</span>模拟持仓</button><button class="nav-btn" data-tab="backtest"><span class="ico">▥</span>历史回测</button></nav>
 <datalist id="stockOptions"></datalist><div class="toast" id="toast" role="status"></div>
@@ -423,18 +423,20 @@ function resolveStockInput(value){
  if(validCode(raw))return raw;
  const codeMatch=raw.match(/(?:^|\s)(\d{6})(?=\s|$)/);
  if(codeMatch)return codeMatch[1];
- if(!stockMasterReady)return null;
+ const entries=stockEntries.length?stockEntries:Object.entries(market.quotes||{}).map(([code,q])=>[code,{name:q.name}]);
+ if(!entries.length)return null;
  const name=raw.replace(/[()（）]/g,' ').replace(/\d{6}/g,' ').replace(/\s+/g,' ').trim().toLowerCase();
  if(!name)return null;
- const exact=stockEntries.filter(([code,item])=>String(item.name||'').trim().toLowerCase()===name);
+ const exact=entries.filter(([code,item])=>String(item.name||'').trim().toLowerCase()===name);
  if(exact.length===1)return exact[0][0];
- const partial=stockEntries.filter(([code,item])=>String(item.name||'').trim().toLowerCase().includes(name));
+ const partial=entries.filter(([code,item])=>String(item.name||'').trim().toLowerCase().includes(name));
  return partial.length===1?partial[0][0]:null;
 }
 function updateStockOptions(value){
  const list=$('stockOptions'),q=String(value||'').trim().toLowerCase();
- if(!list||!stockMasterReady||!q){if(list)list.innerHTML='';return}
- const matches=stockEntries.filter(([code,item])=>code.startsWith(q)||String(item.name||'').toLowerCase().includes(q)).slice(0,20);
+ const entries=stockEntries.length?stockEntries:Object.entries(market.quotes||{}).map(([code,item])=>[code,{name:item.name}]);
+ if(!list||!entries.length||!q){if(list)list.innerHTML='';return}
+ const matches=entries.filter(([code,item])=>code.startsWith(q)||String(item.name||'').toLowerCase().includes(q)).slice(0,20);
  list.innerHTML=matches.map(([code,item])=>'<option value="'+escapeHTML(code+' '+item.name)+'" label="'+escapeHTML(item.name+'（'+code+'）')+'"></option>').join('');
 }
 function canonicalStockInput(code){
