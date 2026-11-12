@@ -216,7 +216,7 @@ function renderTracker(){
   ?' <strong>策略验证暂未通过：</strong>3日组合模拟收益 '+signed(p3.total_return_pct)+'%，最大回撤 '+fmt(p3.max_drawdown_pct)+'%；当前盘中买入预警仅供观察，不建议直接用于实盘。'
   :'';
  $('trackerNotice').innerHTML=data.status==='ready'
-  ?'<strong>历史信号已生成：</strong>回溯 '+(data.lookback_sessions||180)+' 个交易日，共记录 '+(data.signal_count||0)+' 次买入观察。组合模拟按100万元初始资金、最多10只持仓、每笔权益10%进行；统计仅适用于当前已覆盖股票。'+validationWarning
+  ?'<strong>历史信号已生成：</strong>回溯 '+(data.lookback_sessions||180)+' 个交易日，共记录 '+(data.signal_count||0)+' 次买入观察。组合模拟仅统计收盘确认信号，按100万元初始资金、最多10只持仓、每笔权益10%进行；盘中预警另行分组统计。'+validationWarning
   :'<strong>信号历史尚未生成。</strong>下一次收盘数据任务完成后，将自动回溯已覆盖股票的买入观察信号并追踪后续表现。';
  const cards=[
   ['初始资金',p.initial_capital_yuan==null?'—':fmt(p.initial_capital_yuan,0)+'元'],
