@@ -191,39 +191,79 @@ function renderWatch(){
 }
 async function renderPositions(){
  const token=++positionRenderToken,q=market.quotes||{},f=freshness();
- if(!positions.length){$('posList').className='empty';$('posList').innerHTML='<div class="empty"><b>尚无模拟持仓</b>请手动添加，数据仅保存在当前手机。</div>';return}
- $('posList').className='';$('posList').innerHTML='<div class="empty">正在读取持仓历史日线并计算退出信号…</div>';
+ if(!positions.length){
+  liveSellAlerts=[];
+  $('posList').className='empty';
+  $('posList').innerHTML='<div class="empty"><b>尚无模拟持仓</b>请手动添加，数据仅保存在当前手机。</div>';
+  renderLivePanel();
+  return;
+ }
+ $('posList').className='';
+ $('posList').innerHTML='<div class="empty">正在读取持仓历史日线并计算盘中退出预警…</div>';
+ const alerts=[];
  const cards=await Promise.all(positions.map(async(p,i)=>{
   const r=q[p.code],meta=stockMaster[p.code]||{},name=escapeHTML(r?.name||meta.name||p.code);
-  const diff=r?(r.price-p.cost)*p.qty:NaN;
   let signal='<span class="tag caution">历史数据待补齐</span>',levels='',detail='尚无足够历史日线，暂不生成卖出结论。';
+  let current=NaN,diff=NaN,priceLabel='无可用报价';
   try{
    const item=await loadHistory(p.code),a=enrichJS(item.bars),last=a.at(-1);
    const stop=p.cost-1.5*last.atr14,target=p.cost+2*last.atr14;
    const entryDate=p.entry_date||'';
    const heldBars=entryDate?a.filter(x=>x.date>entryDate).length:null;
    const today=bjParts().date;
-   const usableQuote=r&&f.level!=='danger';
-   const current=usableQuote?r.price:last.close;
+   const liveQuote=isLiveQuote(r),recentQuote=hasRecentQuote(r);
+   current=recentQuote?Number(r.price):Number(last.close);
+   diff=(current-p.cost)*p.qty;
+   priceLabel=liveQuote?'盘中行情':recentQuote?'最近行情快照':'最近收盘价';
    const hitStop=current<=stop,hitTarget=current>=target;
-   let label='继续观察持有',reason='止损、止盈、趋势和持有期限条件均未触发',tag='hold';
    const t1Locked=entryDate&&entryDate>=today;
-   if(t1Locked&&(hitStop||hitTarget)){label='T+1锁定 · 下一交易日优先复核';reason=hitStop?'当前价格已触及止损参考线，但当日买入的A股受T+1限制，下一交易日复核。':'当前价格已触及止盈参考线，但当日买入的A股受T+1限制，下一交易日复核。';tag='caution'}
-   else if(t1Locked){label='T+1限制 · 暂不可卖';reason='买入日为今天或尚无后续交易日；下一交易日再判断卖出条件。';tag='caution'}
-   else if(hitStop){label='止损退出观察';reason='最新可用价格触及或跌破成本价减1.5倍ATR';tag='sell'}
-   else if(hitTarget){label='止盈退出观察';reason='最新可用价格达到成本价加2倍ATR';tag='sell'}
-   else if(last.close<last.ma5||last.ma5<last.ma10){label='趋势转弱退出观察';reason='最新完整收盘价跌破MA5，或MA5跌破MA10';tag='sell'}
-   else if(heldBars!==null&&heldBars>=3){label='达到3日持有期限';reason='已达到3个交易日持有期限，评估退出';tag='sell'}
+   let label='继续观察持有',reason='止损、止盈、趋势和持有期限条件均未触发',tag='hold';
+   if(liveQuote){
+    if(t1Locked&&(hitStop||hitTarget)){
+     label='T+1锁定 · 卖出条件触发';
+     reason=hitStop?'盘中价格已触及止损参考线，但当日买入A股受T+1限制，下一交易日优先复核。':'盘中价格已触及止盈参考线，但当日买入A股受T+1限制，下一交易日优先复核。';
+     tag='caution';
+     alerts.push({code:p.code,name:r?.name||meta.name||p.code,price:current,label,reason,live:true});
+    }else if(t1Locked){
+     label='T+1限制 · 暂不可卖';reason='买入日为今天或尚无后续交易日，下一交易日再判断卖出条件。';tag='caution';
+    }else if(hitStop){
+     label='盘中止损预警';reason='最新有效盘中价格触及或跌破成本价减1.5倍ATR。';tag='sell';
+     alerts.push({code:p.code,name:r?.name||meta.name||p.code,price:current,label,reason,live:true});
+    }else if(hitTarget){
+     label='盘中止盈预警';reason='最新有效盘中价格达到成本价加2倍ATR。';tag='sell';
+     alerts.push({code:p.code,name:r?.name||meta.name||p.code,price:current,label,reason,live:true});
+    }else if(current<last.ma5||last.ma5<last.ma10){
+     label='盘中趋势转弱预警';reason='盘中价格低于MA5或MA5低于MA10，需等待收盘确认。';tag='caution';
+     alerts.push({code:p.code,name:r?.name||meta.name||p.code,price:current,label,reason,live:true});
+    }else if(heldBars!==null&&heldBars>=3){
+     label='持有期限退出预警';reason='已达到买入日之后第3个交易日，按策略评估退出。';tag='caution';
+     alerts.push({code:p.code,name:r?.name||meta.name||p.code,price:current,label,reason,live:true});
+    }
+   }else if(t1Locked){
+    label='T+1限制 · 暂不可卖';reason='买入日为今天或尚无后续交易日，下一交易日再判断卖出条件。';tag='caution';
+   }else if(hitStop){
+    label='止损参考线已触发';reason='最近可用价格触及或跌破成本价减1.5倍ATR；当前不是有效盘中报价。';tag='caution';
+   }else if(hitTarget){
+    label='止盈参考线已触发';reason='最近可用价格达到成本价加2倍ATR；当前不是有效盘中报价。';tag='caution';
+   }else if(last.close<last.ma5||last.ma5<last.ma10){
+    label='收盘趋势转弱';reason='最新完整收盘价跌破MA5，或MA5跌破MA10。';tag='caution';
+   }else if(heldBars!==null&&heldBars>=3){
+    label='达到3日持有期限';reason='已达到买入日之后第3个交易日，按策略评估退出。';tag='caution';
+   }
    signal='<span class="tag '+tag+'">'+label+'</span>';
-   detail=reason+(entryDate?' · 持有期日线 '+heldBars+'根':' · 未记录买入日期，时间退出规则停用');
-   levels='<div class="signal-levels"><div><small>参考止损价</small><b>'+fmt(stop)+'元</b></div><div><small>参考止盈价</small><b>'+fmt(target)+'元</b></div></div>';
-   if(!usableQuote)detail+=' · 当前使用最新收盘价，不是盘中报价';
-  }catch(e){detail='历史日线未就绪；不生成虚假的卖出信号。'}
+   detail=reason+(entryDate?' · 买入后完成 '+heldBars+' 个交易日':' · 未记录买入日期，时间退出规则停用');
+   levels='<div class="signal-levels"><div><small>参考止损价</small><b>'+fmt(stop)+'元</b></div><div><small>参考止盈价</small><b>'+fmt(target)+'元</b></div><div><small>最新可用价</small><b>'+fmt(current)+'元</b></div><div><small>行情类型</small><b>'+priceLabel+'</b></div></div>';
+   if(liveQuote)detail+=' · 行情时间 '+escapeHTML(r.quote_time||'未知');
+  }catch(e){detail='历史日线未就绪；不生成虚假的卖出信号。';}
   return '<div class="card" style="padding:12px;margin-bottom:9px"><div class="barline"><div><div class="stockname">'+name+' <span class="tag caution">模拟持仓</span></div><div class="stockcode">'+p.code+' · '+p.qty+'股 · 成本 '+fmt(p.cost)+'元/股'+(p.entry_date?' · 买入 '+escapeHTML(p.entry_date):' · 买入日期未记录')+'</div></div>'+signal+'</div>'+
-   '<div class="barline" style="margin-top:10px"><div class="numbers '+(diff>0?'up':diff<0?'down':'')+'">'+signed(diff)+'<small>元 · '+(r?(f.level==='danger'?'过期估值':'快照估值'):'无快照')+'</small></div><button class="btn small" data-remove-pos="'+i+'">删除</button></div>'+
+   '<div class="barline" style="margin-top:10px"><div class="numbers '+(diff>0?'up':diff<0?'down':'')+'">'+signed(diff)+'<small>元 · '+priceLabel+'</small></div><button class="btn small" data-remove-pos="'+i+'">删除</button></div>'+
    levels+'<p class="fine" style="margin:8px 0 0">'+escapeHTML(detail)+'</p></div>';
  })).then(x=>x.join(''));
- if(token===positionRenderToken)$('posList').innerHTML=cards;
+ if(token===positionRenderToken){
+  $('posList').innerHTML=cards;
+  liveSellAlerts=alerts;
+  renderLivePanel();
+ }
 }function setTab(tab){activeTab=tab;$$('.details').forEach(x=>x.classList.toggle('active',x.id===tab));$$('[data-tab]').forEach(x=>x.classList.toggle('active',x.dataset.tab===tab));window.scrollTo({top:0,behavior:'instant'});}
 function saveFile(filename,text){const a=document.createElement('a'),blob=new Blob([text],{type:'application/json;charset=utf-8'});a.href=URL.createObjectURL(blob);a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000)}
 async function fetchJSON(path){const r=await fetch(path+(path.includes('?')?'&':'?')+'t='+Date.now(),{cache:'no-store'});if(!r.ok)throw Error(`${r.status} ${path}`);return r.json()}
@@ -296,22 +336,33 @@ function entrySignalJS(a){
   stop:p.close-1.5*atr,target:p.close+2*atr,validSessions:1};
 }
 function graph(a){const xs=a.slice(-90),w=350,h=185,l=12,r=12,top=12,bottom=16,min=Math.min(...xs.map(x=>x.low))*.995,max=Math.max(...xs.map(x=>x.high))*1.005;const X=i=>l+(w-l-r)*i/Math.max(1,xs.length-1),Y=p=>h-bottom-(p-min)/(max-min||1)*(h-bottom-top);const line=k=>xs.map((x,i)=>(Number.isFinite(x[k])?`${i?'L':'M'}${X(i).toFixed(1)},${Y(x[k]).toFixed(1)}`:'' )).join(' ');return `<div class="linechart"><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="历史价格走势图"><g stroke="#e9e4dc" stroke-width="1">${[0,1,2,3].map(i=>`<line x1="${l}" x2="${w-r}" y1="${25+i*43}" y2="${25+i*43}"/>`).join('')}</g><path d="${line('close')}" fill="none" stroke="#b77049" stroke-width="2.4"/><path d="${line('ma5')}" fill="none" stroke="#388875" stroke-width="1.6"/><path d="${line('ma10')}" fill="none" stroke="#a6a6a0" stroke-width="1.4" stroke-dasharray="5 4"/></svg><div class="barline fine"><span>${xs[0].date}</span><span>${xs.at(-1).date}</span></div><div class="fine" style="margin-top:7px">🟠 收盘价　<span style="color:var(--jade)">━━</span> MA5　┄ MA10（不复权）</div></div>`}
-async function analyze(code){
- if(!validCode(code))return toast('请输入正确的6位股票代码');
- $('detailCode').value=code;$('btCode').value=code;setTab('detail');
+async function analyze(input){
+ const code=resolveStockInput(input);
+ if(!code)return toast('请输入6位股票代码或股票名称，并从建议列表选择');
+ const name=market.quotes?.[code]?.name||stockMaster[code]?.name||code;
+ $('detailCode').value=canonicalStockInput(code);$('btCode').value=canonicalStockInput(code);setTab('detail');
  $('detailContent').className='empty';$('detailContent').innerHTML='<b>读取历史数据…</b>';
  try{
-  const item=await loadHistory(code),a=enrichJS(item.bars),last=a.at(-1),quote=market.quotes?.[code],row=(screen.rows||[]).find(x=>x.code===code);
-  const st=freshness(),plan=entrySignalJS(a);
-  const signalTag=plan.buy?'<span class="tag good">BUY WATCH · 次日观察</span>':'<span class="tag caution">WAIT · 暂不买入</span>';
-  const reasonText=plan.buy?'全部5项买入条件通过。次日仅在价格没有明显跳空、行情有效且成交条件允许时复核。':'未通过：'+plan.failed.join('；');
-  const planBox='<div class="signal-box"><strong>短线买入信号：'+signalTag+'</strong><div class="fine">'+escapeHTML(reasonText)+'</div>'+
+  const item=await loadHistory(code),a=enrichJS(item.bars),last=a.at(-1),quote=market.quotes?.[code];
+  const plan=entrySignalJS(a);
+  const liveRow={code,asof:last.date,entry_signal:plan.buy,buy_low:plan.buyLow,buy_high:plan.buyHigh,
+   ma5:last.ma5,ma10:last.ma10,avg_volume5:last.volPrev};
+  const liveState=liveBuyState(liveRow),live= isLiveQuote(quote);
+  const signalTag=plan.buy?'<span class="tag good">收盘买入观察</span>':'<span class="tag caution">收盘暂不买入</span>';
+  const reasonText=plan.buy?'全部5项收盘买入条件通过。次日仅在盘中价格、均线和量能再次确认后观察。':'未通过：'+plan.failed.join('；');
+  const liveTag=liveState.status==='BUY'?'<span class="tag good">盘中买入预警</span>':'<span class="tag caution">'+escapeHTML(live?liveState.label:'非盘中有效行情')+'</span>';
+  const quotePrice=hasRecentQuote(quote)?fmt(Number(quote.price))+'元':'—';
+  const quoteChange=hasRecentQuote(quote)?signed(Number(quote.change_pct))+'%':'—';
+  const liveBox='<div class="signal-box"><strong>盘中行情与信号：'+liveTag+'</strong>'+
+   '<div class="signal-levels"><div><small>最新可用价格</small><b>'+quotePrice+'</b></div><div><small>快照涨跌幅</small><b>'+quoteChange+'</b></div><div><small>收盘买入观察区间</small><b>'+fmt(plan.buyLow)+'–'+fmt(plan.buyHigh)+'</b></div><div><small>快照时间</small><b>'+(quote?escapeHTML(quote.quote_time||market.fetched_at||'未知'):'暂无')+'</b></div></div>'+
+   '<p class="fine" style="margin:8px 0 0">'+(live?escapeHTML(liveState.label)+'。盘中信号是预警，不是自动委托。':'当前不是有效盘中报价；非交易时段或快照超过15分钟时，不生成盘中买卖预警。')+'</p></div>';
+  const planBox='<div class="signal-box"><strong>收盘买入策略：'+signalTag+'</strong><div class="fine">'+escapeHTML(reasonText)+'</div>'+
    '<div class="signal-levels"><div><small>参考观察区间</small><b>'+fmt(plan.buyLow)+'–'+fmt(plan.buyHigh)+'</b></div><div><small>参考止损线</small><b>'+fmt(plan.stop)+'</b></div><div><small>参考止盈线</small><b>'+fmt(plan.target)+'</b></div><div><small>信号有效期</small><b>下一交易日</b></div></div>'+
-   '<p class="fine" style="margin:8px 0 0">以上价格以最新完整收盘价和ATR计算，不是自动委托价；若次日高开超出观察区间，不追涨。策略尚需持续回测。</p></div>';
+   '<p class="fine" style="margin:8px 0 0">以上价格以最新完整收盘价和ATR计算，不是自动委托价；若次日高开超出观察区间，不追涨。</p></div>';
   $('detailContent').className='';
-  $('detailContent').innerHTML='<div class="barline"><div><div class="readonly">'+escapeHTML(quote?.name||row?.name||stockMaster[code]?.name||code)+' · '+code+'</div><div style="font-size:26px;font-weight:800;margin:5px 0">'+fmt(last.close)+' <small style="font-size:12px;color:var(--muted)">元 · 历史收盘</small></div><div class="fine">日线截至 '+last.date+' · '+(item.adjust==='none'?'不复权':'数据源复权未知')+'</div></div>'+signalTag+'</div>'+
+  $('detailContent').innerHTML='<div class="barline"><div><div class="readonly">'+escapeHTML(name)+' · '+code+'</div><div style="font-size:26px;font-weight:800;margin:5px 0">'+fmt(last.close)+' <small style="font-size:12px;color:var(--muted)">元 · 最近完整收盘</small></div><div class="fine">日线截至 '+last.date+' · '+(item.adjust==='none'?'不复权':'数据源复权未知')+'</div></div>'+signalTag+'</div>'+
    '<div class="metric-grid"><div class="metric"><small>日线MA5</small><strong>'+fmt(last.ma5)+'</strong></div><div class="metric"><small>日线MA10</small><strong>'+fmt(last.ma10)+'</strong></div><div class="metric"><small>RSI14</small><strong>'+fmt(last.rsi14,1)+'</strong></div><div class="metric"><small>ATR14</small><strong>'+fmt(last.atr14,3)+'</strong></div></div>'+
-   planBox+graph(a)+'<div class="market-notice">'+(quote?'采集行情：'+fmt(quote.price)+'元（'+signed(quote.change_pct)+'%，采集时间 '+escapeHTML(market.fetched_at||'未知')+'，'+escapeHTML(st.label)+'）':'没有盘中快照；不可推算最新市价。')+'</div><p class="hint">买入观察信号由MA5/MA10、成交量、RSI、20日高点和ATR共同判断。信号在收盘后生成，仅供下一交易日复核。历史价格为不复权口径。</p>';
+   liveBox+planBox+graph(a)+'<p class="hint">盘中行情来自腾讯公开行情快照，约5分钟采集一次，不是交易所逐笔推送；实际行情可能延迟。若已有持仓，请在模拟持仓中录入成本和买入日期以查看对应卖出预警。</p>';
  }catch(e){renderHistoryPending(code,e);}
 }
 function renderHistoryPending(code,err){
@@ -344,8 +395,25 @@ function renderHistoryPending(code,err){
   '</div>';
 }
 function btOne(a,code,maxhold){const out=[];let i=64;while(i<a.length-1){const setup=entrySignalJS(a.slice(0,i+1));if(!setup.buy){i++;continue}const en=i+1,signalAtr=a[i].atr14,signalClose=a[i].close,open=a[en].open;if(open<signalClose-.25*signalAtr||open>signalClose+.25*signalAtr){i++;continue}const buy=open*1.001,notional=buy*100,buyfee=Math.max(5,notional*.0003),stop=buy-1.5*signalAtr,target=buy+2*signalAtr;let ex=-1,sell=NaN,reason='持有到期';if(en+maxhold>=a.length)break;const lastExit=en+maxhold;for(let j=en+1;j<=lastExit;j++){const o=a[j].open,h=a[j].high,l=a[j].low,c=a[j].close;if(o<=stop){ex=j;sell=o*.999;reason='跳空止损';break}if(o>=target){ex=j;sell=target*.999;reason='止盈';break}if(l<=stop&&h>=target){ex=j;sell=stop*.999;reason='止损（同日触及两线，保守按止损）';break}if(l<=stop){ex=j;sell=stop*.999;reason='止损';break}if(h>=target){ex=j;sell=target*.999;reason='止盈';break}if(c<a[j].ma5||a[j].ma5<a[j].ma10){if(j<a.length-1){ex=j+1;sell=a[ex].open*.999}else{ex=j;sell=c*.999}reason='趋势转弱';break}if(j===lastExit){ex=j;sell=c*.999;reason='持有期限到';break}}if(ex<0){i++;continue}const proceeds=sell*100,sellfee=Math.max(5,proceeds*.0003)+proceeds*.0005;out.push({code,signalDate:a[i].date,entryDate:a[en].date,exitDate:a[ex].date,entry:buy,exit:sell,pl:proceeds-notional-buyfee-sellfee,reason});i=ex+1}return out;}
-async function runBacktest(){const code=$('btCode').value.trim(),hold=Number($('btHold').value);if(!validCode(code))return toast('先填写6位股票代码');$('btResults').innerHTML='<div class="empty">读取历史日线并执行模拟回测…</div>';try{const data=await loadHistory(code),trades=btOne(enrichJS(data.bars),code,hold),wins=trades.filter(t=>t.pl>0),loss=trades.filter(t=>t.pl<0),pl=trades.reduce((s,t)=>s+t.pl,0),win=trades.length?wins.length/trades.length*100:null,pf=loss.length?wins.reduce((s,t)=>s+t.pl,0)/(-loss.reduce((s,t)=>s+t.pl,0)):null;let curve=0,top=0,draw=0;for(const t of trades){curve+=t.pl;top=Math.max(top,curve);draw=Math.min(draw,curve-top)}$('btResults').className='card';$('btResults').innerHTML=`<div class="readonly">模拟回测 · ${code} · ${data.bars[0].date} 至 ${data.bars.at(-1).date}</div><div class="metric-grid"><div class="metric"><small>完成的模拟交易</small><strong>${trades.length}</strong></div><div class="metric"><small>胜率</small><strong>${win===null?'—':fmt(win,1)+'%'}</strong></div><div class="metric"><small>独立交易累计盈亏</small><strong class="${pl>=0?'up':'down'}">${signed(pl)}元</strong></div><div class="metric"><small>Profit Factor</small><strong>${fmt(pf)}</strong></div></div><p class="hint">逐笔累计盈亏的最大回撤：${fmt(draw)}元（不是组合净值最大回撤）。固定100股；佣金最低5元/边可能显著影响结果。</p><div class="scroll-x"><table class="mini-table"><thead><tr><th>买入日 / 卖出日</th><th>退出原因</th><th>交易盈亏</th></tr></thead><tbody>${trades.length?trades.slice(-30).reverse().map(x=>`<tr><td>${x.entryDate}<div class="fine">${x.exitDate}</div></td><td>${x.reason}</td><td class="${x.pl>=0?'up':'down'}">${signed(x.pl)}元</td></tr>`).join(''):'<tr><td colspan="3">该样本内没有完成的模拟交易</td></tr>'}</tbody></table></div>`;
- }catch(e){$('btResults').className='card empty';$('btResults').innerHTML='<b>回测暂不可用</b><p>该股票尚未发布至少65根有效历史日线，或目前无法读取数据。请先加入自选并稍后重试，不能使用缺失数据生成回测结果。</p>'}}
+async function runBacktest(){
+ const raw=$('btCode').value.trim(),code=resolveStockInput(raw),hold=Number($('btHold').value);
+ if(!code)return toast('请输入6位股票代码或股票名称，并从建议列表选择');
+ const name=market.quotes?.[code]?.name||stockMaster[code]?.name||code;
+ $('btCode').value=canonicalStockInput(code);
+ $('btResults').innerHTML='<div class="empty">读取历史日线并执行模拟回测…</div>';
+ try{
+  const data=await loadHistory(code),trades=btOne(enrichJS(data.bars),code,hold),wins=trades.filter(t=>t.pl>0),loss=trades.filter(t=>t.pl<0),pl=trades.reduce((sum,t)=>sum+t.pl,0),win=trades.length?wins.length/trades.length*100:null,pf=loss.length?wins.reduce((sum,t)=>sum+t.pl,0)/(-loss.reduce((sum,t)=>sum+t.pl,0)):null;
+  let curve=0,top=0,draw=0;for(const t of trades){curve+=t.pl;top=Math.max(top,curve);draw=Math.min(draw,curve-top)}
+  $('btResults').className='card';
+  $('btResults').innerHTML='<div class="readonly">模拟回测 · '+escapeHTML(name)+'（'+code+'） · '+data.bars[0].date+' 至 '+data.bars.at(-1).date+'</div>'+
+   '<div class="metric-grid"><div class="metric"><small>完成的模拟交易</small><strong>'+trades.length+'</strong></div><div class="metric"><small>胜率</small><strong>'+(win===null?'—':fmt(win,1)+'%')+'</strong></div><div class="metric"><small>独立交易累计盈亏</small><strong class="'+(pl>=0?'up':'down')+'">'+signed(pl)+'元</strong></div><div class="metric"><small>Profit Factor</small><strong>'+fmt(pf)+'</strong></div></div>'+
+   '<p class="hint">逐笔累计盈亏的最大回撤：'+fmt(draw)+'元（不是组合净值最大回撤）。固定100股；佣金最低5元/边可能显著影响结果。</p>'+
+   '<div class="scroll-x"><table class="mini-table"><thead><tr><th>买入日 / 卖出日</th><th>退出原因</th><th>交易盈亏</th></tr></thead><tbody>'+(trades.length?trades.slice(-30).reverse().map(x=>'<tr><td>'+x.entryDate+'<div class="fine">'+x.exitDate+'</div></td><td>'+x.reason+'</td><td class="'+(x.pl>=0?'up':'down')+'">'+signed(x.pl)+'元</td></tr>').join(''):'<tr><td colspan="3">该样本内没有完成的模拟交易</td></tr>')+'</tbody></table></div>';
+ }catch(e){
+  $('btResults').className='card empty';
+  $('btResults').innerHTML='<b>回测暂不可用</b><p>该股票尚未发布至少65根有效历史日线，或目前无法读取数据。请先加入自选并稍后重试，不能使用缺失数据生成回测结果。</p>';
+ }
+}
 $$('[data-tab]').forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.tab)));
 $$('[data-filter]').forEach(b=>b.addEventListener('click',()=>{filter=b.dataset.filter;$$('[data-filter]').forEach(x=>x.classList.toggle('active',x===b));renderScreen()}));
 $('stockSearch').addEventListener('input',renderScreen);
@@ -403,7 +471,7 @@ $('resetPrice').addEventListener('click',()=>setPriceFilter(3,100));
 $('watchAdd').addEventListener('click',()=>{if(addWatch($('watchCode').value.trim()))$('watchCode').value=''});
 $('watchRefresh').addEventListener('click',refreshMarket);$('refreshAll').addEventListener('click',refreshMarket);
 $('analyzeCode').addEventListener('click',()=>analyze($('detailCode').value.trim()));$('detailStar').addEventListener('click',()=>addWatch($('detailCode').value.trim()));
-$('posAdd').addEventListener('click',()=>{let code=$('posCode').value.trim(),qty=Number($('posQty').value),cost=Number($('posCost').value),entry_date=$('posEntryDate').value;if(!validCode(code)||!Number.isInteger(qty)||qty<=0||!Number.isFinite(cost)||cost<=0||!entry_date)return toast('请正确填写代码、股数、成本价和买入日期');positions.push({code,qty,cost,entry_date});saveLocal('positions',positions);renderPositions();toast('已保存本地模拟持仓')});
+$('posAdd').addEventListener('click',()=>{let raw=$('posCode').value.trim(),code=resolveStockInput(raw),qty=Number($('posQty').value),cost=Number($('posCost').value),entry_date=$('posEntryDate').value;if(!code||!Number.isInteger(qty)||qty<=0||!Number.isFinite(cost)||cost<=0||!entry_date)return toast('请正确填写股票代码/名称、股数、成本价和买入日期');$('posCode').value=canonicalStockInput(code);positions.push({code,qty,cost,entry_date});saveLocal('positions',positions);renderPositions();toast(canonicalStockInput(code)+' 已保存为本机模拟持仓')});
 $('exportPrivate').addEventListener('click',()=>saveFile('ashare_private_backup.json',JSON.stringify({format:'ASharePersonalV12',exported:new Date().toISOString(),watch,positions},null,2)));
 $('importPrivate').addEventListener('change',async e=>{try{const file=e.target.files[0];if(!file)return;const data=JSON.parse(await file.text());if(data.format!=='ASharePersonalV12')throw Error('备份版本不匹配');if(!confirm('将用备份替换当前本地自选和模拟持仓，是否继续？'))return;watch=(data.watch||[]).filter(validCode);positions=(data.positions||[]).filter(p=>validCode(p.code)&&p.cost>0&&Number.isInteger(p.qty)&&p.qty>0);saveLocal('watch',watch);saveLocal('positions',positions);renderWatch();renderPositions();toast('已恢复本地记录')}catch(e){toast('恢复失败：'+e.message)}finally{e.target.value=''}});
 $('posEntryDate').value ||= bjParts().date;
