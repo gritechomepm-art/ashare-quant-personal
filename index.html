@@ -122,7 +122,7 @@ async function renderPositions(){
    else if(t1Locked){label='T+1限制 · 暂不可卖';reason='买入日为今天或尚无后续交易日；下一交易日再判断卖出条件。';tag='caution'}
    else if(hitStop){label='止损退出观察';reason='最新可用价格触及或跌破成本价减1.5倍ATR';tag='sell'}
    else if(hitTarget){label='止盈退出观察';reason='最新可用价格达到成本价加2倍ATR';tag='sell'}
-   else if(current<last.ma5||last.ma5<last.ma10){label='趋势转弱退出观察';reason='最新可用价格低于MA5，或MA5跌破MA10';tag='sell'}
+   else if(last.close<last.ma5||last.ma5<last.ma10){label='趋势转弱退出观察';reason='最新完整收盘价跌破MA5，或MA5跌破MA10';tag='sell'}
    else if(heldBars!==null&&heldBars>=3){label='达到3日持有期限';reason='已达到3个交易日持有期限，评估退出';tag='sell'}
    signal='<span class="tag '+tag+'">'+label+'</span>';
    detail=reason+(entryDate?' · 持有期日线 '+heldBars+'根':' · 未记录买入日期，时间退出规则停用');
