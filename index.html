@@ -353,10 +353,10 @@ document.addEventListener('click',event=>{const d=event.target.closest('[data-de
 function resolveStockInput(value){
  const raw=String(value||'').trim();
  if(validCode(raw))return raw;
- const codeMatch=raw.match(/(?:^|\\s)(\\d{6})(?=\\s|$)/);
+ const codeMatch=raw.match(/(?:^|\s)(\d{6})(?=\s|$)/);
  if(codeMatch)return codeMatch[1];
  if(!stockMasterReady)return null;
- const name=raw.replace(/[()（）]/g,' ').replace(/\\d{6}/g,' ').replace(/\\s+/g,' ').trim().toLowerCase();
+ const name=raw.replace(/[()（）]/g,' ').replace(/\d{6}/g,' ').replace(/\s+/g,' ').trim().toLowerCase();
  if(!name)return null;
  const exact=stockEntries.filter(([code,item])=>String(item.name||'').trim().toLowerCase()===name);
  if(exact.length===1)return exact[0][0];
