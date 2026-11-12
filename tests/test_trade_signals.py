@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from quant_v1 import evaluate_entry_signal, evaluate_exit_signal
+from quant_v1 import evaluate_entry_signal, evaluate_exit_signal, backtest_trade_signals
 
 
 def rising_bars(n=100):
@@ -61,3 +61,16 @@ def test_three_trading_session_time_exit():
     entry_date = frame.date.iloc[-3].strftime("%Y-%m-%d")
     result = evaluate_exit_signal(frame, cost=float(frame.close.iloc[-1]), entry_date=entry_date)
     assert result["status"] == "SELL_TIME"
+
+
+def test_v13_backtest_uses_next_session_entry_and_three_day_exit():
+    frame = rising_bars(105)
+    frame["volume"] = 1000.0
+    frame.loc[99, "volume"] = 1400.0
+    frame.loc[100, "open"] = float(frame.loc[99, "close"])
+    trades = backtest_trade_signals(frame, "000001", maxhold=3)
+    assert len(trades) == 1
+    assert trades[0]["signal_date"] == frame.loc[99, "date"].date().isoformat()
+    assert trades[0]["entry_date"] == frame.loc[100, "date"].date().isoformat()
+    assert trades[0]["exit_date"] == frame.loc[103, "date"].date().isoformat()
+    assert trades[0]["bars_held"] == 3
