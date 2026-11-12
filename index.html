@@ -99,8 +99,42 @@ function renderWatch(){
   return '<div class="listrow"><div><div class="stockname">'+escapeHTML(name)+' <span class="tag caution">自选</span></div><div class="stockcode">'+code+(r?' · '+signed(r.change_pct)+'%':' · 等待行情快照')+'</div></div><div class="numbers '+(r?.change_pct>0?'up':r?.change_pct<0?'down':'')+'">'+(r?fmt(r.price):'—')+'<small>'+(r?'元 · '+escapeHTML(r.quote_time||market.fetched_at||'采集快照'):'尚未取得报价')+'</small></div><button class="btn small" data-remove-watch="'+code+'">移除</button></div>';
  }).join(''):'<div class="empty"><b>暂无自选股</b>输入A股代码或股票全名添加，记录仅保存在当前手机。</div>';
 }
-function renderPositions(){const q=market.quotes||{},f=freshness();$('posList').className=positions.length?'':'empty';$('posList').innerHTML=positions.length?positions.map((p,i)=>{let r=q[p.code],diff=r?(r.price-p.cost)*p.qty:NaN;return `<div class="listrow"><div><div class="stockname">${escapeHTML(r?.name||stockMaster[p.code]?.name||p.code)} <span class="tag caution">模拟</span></div><div class="stockcode">${p.code} · ${p.qty}股 · 成本 ${fmt(p.cost)}元/股</div></div><div class="numbers ${diff>0?'up':diff<0?'down':''}">${signed(diff)}<small>元 · ${r?(f.level==='danger'?'过期估值':'快照估值'):'无价格'}</small></div><button class="btn small" data-remove-pos="${i}">删除</button></div>`}).join(''):'<div class="empty"><b>尚无模拟持仓</b>请手动添加，数据仅保存在当前手机。</div>';}
-function setTab(tab){activeTab=tab;$$('.details').forEach(x=>x.classList.toggle('active',x.id===tab));$$('[data-tab]').forEach(x=>x.classList.toggle('active',x.dataset.tab===tab));window.scrollTo({top:0,behavior:'instant'});}
+async function renderPositions(){
+ const token=++positionRenderToken,q=market.quotes||{},f=freshness();
+ if(!positions.length){$('posList').className='empty';$('posList').innerHTML='<div class="empty"><b>尚无模拟持仓</b>请手动添加，数据仅保存在当前手机。</div>';return}
+ $('posList').className='';$('posList').innerHTML='<div class="empty">正在读取持仓历史日线并计算退出信号…</div>';
+ const cards=await Promise.all(positions.map(async(p,i)=>{
+  const r=q[p.code],meta=stockMaster[p.code]||{},name=escapeHTML(r?.name||meta.name||p.code);
+  const diff=r?(r.price-p.cost)*p.qty:NaN;
+  let signal='<span class="tag caution">历史数据待补齐</span>',levels='',detail='尚无足够历史日线，暂不生成卖出结论。';
+  try{
+   const item=await loadHistory(p.code),a=enrichJS(item.bars),last=a.at(-1);
+   const stop=p.cost-1.5*last.atr14,target=p.cost+2*last.atr14;
+   const entryDate=p.entry_date||'';
+   const heldBars=entryDate?a.filter(x=>x.date>=entryDate).length:null;
+   const today=bjParts().date;
+   const usableQuote=r&&f.level!=='danger';
+   const current=usableQuote?r.price:last.close;
+   const hitStop=current<=stop,hitTarget=current>=target;
+   let label='继续观察持有',reason='止损、止盈、趋势和持有期限条件均未触发',tag='hold';
+   const t1Locked=entryDate&&entryDate>=today;
+   if(t1Locked&&(hitStop||hitTarget)){label='T+1锁定 · 下一交易日优先复核';reason=hitStop?'当前价格已触及止损参考线，但当日买入的A股受T+1限制，下一交易日复核。':'当前价格已触及止盈参考线，但当日买入的A股受T+1限制，下一交易日复核。';tag='caution'}
+   else if(t1Locked){label='T+1限制 · 暂不可卖';reason='买入日为今天或尚无后续交易日；下一交易日再判断卖出条件。';tag='caution'}
+   else if(hitStop){label='止损退出观察';reason='最新可用价格触及或跌破成本价减1.5倍ATR';tag='sell'}
+   else if(hitTarget){label='止盈退出观察';reason='最新可用价格达到成本价加2倍ATR';tag='sell'}
+   else if(current<last.ma5||last.ma5<last.ma10){label='趋势转弱退出观察';reason='最新可用价格低于MA5，或MA5跌破MA10';tag='sell'}
+   else if(heldBars!==null&&heldBars>=3){label='达到3日持有期限';reason='已达到3个交易日持有期限，评估退出';tag='sell'}
+   signal='<span class="tag '+tag+'">'+label+'</span>';
+   detail=reason+(entryDate?' · 持有期日线 '+heldBars+'根':' · 未记录买入日期，时间退出规则停用');
+   levels='<div class="signal-levels"><div><small>参考止损价</small><b>'+fmt(stop)+'元</b></div><div><small>参考止盈价</small><b>'+fmt(target)+'元</b></div></div>';
+   if(!usableQuote)detail+=' · 当前使用最新收盘价，不是盘中报价';
+  }catch(e){detail='历史日线未就绪；不生成虚假的卖出信号。'}
+  return '<div class="card" style="padding:12px;margin-bottom:9px"><div class="barline"><div><div class="stockname">'+name+' <span class="tag caution">模拟持仓</span></div><div class="stockcode">'+p.code+' · '+p.qty+'股 · 成本 '+fmt(p.cost)+'元/股'+(p.entry_date?' · 买入 '+escapeHTML(p.entry_date):' · 买入日期未记录')+'</div></div>'+signal+'</div>'+
+   '<div class="barline" style="margin-top:10px"><div class="numbers '+(diff>0?'up':diff<0?'down':'')+'">'+signed(diff)+'<small>元 · '+(r?(f.level==='danger'?'过期估值':'快照估值'):'无快照')+'</small></div><button class="btn small" data-remove-pos="'+i+'">删除</button></div>'+
+   levels+'<p class="fine" style="margin:8px 0 0">'+escapeHTML(detail)+'</p></div>';
+ })).then(x=>x.join(''));
+ if(token===positionRenderToken)$('posList').innerHTML=cards;
+}function setTab(tab){activeTab=tab;$$('.details').forEach(x=>x.classList.toggle('active',x.id===tab));$$('[data-tab]').forEach(x=>x.classList.toggle('active',x.dataset.tab===tab));window.scrollTo({top:0,behavior:'instant'});}
 function saveFile(filename,text){const a=document.createElement('a'),blob=new Blob([text],{type:'application/json;charset=utf-8'});a.href=URL.createObjectURL(blob);a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000)}
 async function fetchJSON(path){const r=await fetch(path+(path.includes('?')?'&':'?')+'t='+Date.now(),{cache:'no-store'});if(!r.ok)throw Error(`${r.status} ${path}`);return r.json()}
 async function loadStockMaster(){
@@ -249,9 +283,10 @@ function addWatch(input){
 $('watchAdd').addEventListener('click',()=>{if(addWatch($('watchCode').value.trim()))$('watchCode').value=''});
 $('watchRefresh').addEventListener('click',refreshMarket);$('refreshAll').addEventListener('click',refreshMarket);
 $('analyzeCode').addEventListener('click',()=>analyze($('detailCode').value.trim()));$('detailStar').addEventListener('click',()=>addWatch($('detailCode').value.trim()));
-$('posAdd').addEventListener('click',()=>{let code=$('posCode').value.trim(),qty=Number($('posQty').value),cost=Number($('posCost').value);if(!validCode(code)||!Number.isInteger(qty)||qty<=0||!Number.isFinite(cost)||cost<=0)return toast('请正确填写代码、股数和成本价');positions.push({code,qty,cost});saveLocal('positions',positions);renderPositions();toast('已保存本地模拟持仓')});
+$('posAdd').addEventListener('click',()=>{let code=$('posCode').value.trim(),qty=Number($('posQty').value),cost=Number($('posCost').value),entry_date=$('posEntryDate').value;if(!validCode(code)||!Number.isInteger(qty)||qty<=0||!Number.isFinite(cost)||cost<=0||!entry_date)return toast('请正确填写代码、股数、成本价和买入日期');positions.push({code,qty,cost,entry_date});saveLocal('positions',positions);renderPositions();toast('已保存本地模拟持仓')});
 $('exportPrivate').addEventListener('click',()=>saveFile('ashare_private_backup.json',JSON.stringify({format:'ASharePersonalV12',exported:new Date().toISOString(),watch,positions},null,2)));
 $('importPrivate').addEventListener('change',async e=>{try{const file=e.target.files[0];if(!file)return;const data=JSON.parse(await file.text());if(data.format!=='ASharePersonalV12')throw Error('备份版本不匹配');if(!confirm('将用备份替换当前本地自选和模拟持仓，是否继续？'))return;watch=(data.watch||[]).filter(validCode);positions=(data.positions||[]).filter(p=>validCode(p.code)&&p.cost>0&&Number.isInteger(p.qty)&&p.qty>0);saveLocal('watch',watch);saveLocal('positions',positions);renderWatch();renderPositions();toast('已恢复本地记录')}catch(e){toast('恢复失败：'+e.message)}finally{e.target.value=''}});
+$('posEntryDate').value ||= bjParts().date;
 $('runBt').addEventListener('click',runBacktest);
 refreshMarket();setInterval(()=>{if(document.visibilityState==='visible')refreshMarket()},5*60*1000);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshMarket()});
