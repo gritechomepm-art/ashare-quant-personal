@@ -1,8 +1,9 @@
-"""Fetch a broad A-share snapshot in batches from Tencent's public quote endpoint.
-Unofficial provider; failed chunks are reported and incomplete snapshots are rejected.
+"""Fetch a limited EOD-screened opportunity pool from Tencent's public quote endpoint.
+Unofficial provider; reject missing/stale candidate data, never fetch 5,000+ symbols.
 """
 import argparse
 import json
+import math
 import re
 import time
 from datetime import datetime
@@ -66,19 +67,72 @@ def parse_tencent_response(raw, requested_codes):
     return found
 
 
+
+OPPORTUNITY_SCORE_MIN = 55
+OPPORTUNITY_CAP = 120
+MIN_SIGNAL_PRICE = 3.0
+MAX_SIGNAL_PRICE = 100.0
+
+
+def select_opportunity_codes(screen, min_score=OPPORTUNITY_SCORE_MIN, cap=OPPORTUNITY_CAP):
+    """Prioritize true close buy signals, then high-score observations; never pad with random stocks.
+
+    Selection is only over the successfully screened EOD rows, which may be
+    partial. This does NOT independently discover opportunities across the A-share market.
+    """
+    if not isinstance(screen, dict) or screen.get("schema") != 1:
+        raise ValueError("No valid public EOD screening result")
+    rows = screen.get("rows")
+    if not isinstance(rows, list):
+        raise ValueError("EOD screening rows missing")
+    candidates = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        code = str(row.get("code", ""))
+        if not re.fullmatch(r"\d{6}", code):
+            continue
+        try:
+            close = float(row.get("close"))
+            score = float(row.get("score", 0))
+        except (TypeError, ValueError):
+            continue
+        buy_signal = row.get("entry_signal") is True
+        if not (math.isfinite(close) and math.isfinite(score)):
+            continue
+        if not (MIN_SIGNAL_PRICE <= close <= MAX_SIGNAL_PRICE):
+            continue
+        if not buy_signal and score < min_score:
+            continue
+        candidates.append((not buy_signal, -score, code))
+    candidates.sort()
+    codes = []
+    for _, _, code in candidates:
+        if code not in codes:
+            codes.append(code)
+        if len(codes) >= cap:
+            break
+    return codes
+
+
 def load_codes():
-    master_path = ROOT / "data" / "stocks.json"
-    if master_path.exists():
-        master = json.loads(master_path.read_text(encoding="utf-8"))
-        stocks = master.get("stocks", {})
-        codes = sorted(code for code in stocks if re.fullmatch(r"\d{6}", code))
-        if len(codes) >= 1200:
-            return codes, "BaoStock full A-share stock master"
-    fallback_path = ROOT / "data" / "watchlist_public.json"
-    if fallback_path.exists():
-        codes = json.loads(fallback_path.read_text(encoding="utf-8"))
-        return list(dict.fromkeys(str(x).strip() for x in codes)), "temporary two-stock fallback"
-    raise RuntimeError("No public A-share stock master is available")
+    screen_path = ROOT / "data" / "screen.json"
+    if not screen_path.exists():
+        raise RuntimeError("No EOD screening data; refuse unfiltered all-market fallback")
+    screen = json.loads(screen_path.read_text(encoding="utf-8"))
+    codes = select_opportunity_codes(screen)
+    if not codes:
+        raise RuntimeError("No qualified opportunity candidates in EOD screen; refuse all-market fallback")
+    asof = str(screen.get("asof", ""))
+    try:
+        screening_day = datetime.strptime(asof, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise RuntimeError("Invalid EOD screen date") from exc
+    days_old = (datetime.now(CST).date() - screening_day).days
+    if days_old < 0 or days_old > 10:
+        raise RuntimeError(f"EOD screen date out of bounds: {asof}; refusing stale opportunity pool")
+    source = f"EOD screen {asof}; BUY first; observation score >= {OPPORTUNITY_SCORE_MIN}; max {OPPORTUNITY_CAP}; partial-coverage possible"
+    return codes, source
 
 
 def fetch_market(codes=None, batch_size=100, pause=0.12):
@@ -117,7 +171,7 @@ def fetch_market(codes=None, batch_size=100, pause=0.12):
             time.sleep(pause)
     count = len(quotes)
     coverage = round(count / max(1, len(codes)) * 100, 2)
-    minimum = 2 if len(codes) <= 2 else max(1200, int(len(codes) * 0.25))
+    minimum = max(1, math.ceil(len(codes) * 0.70))
     if count < minimum:
         raise RuntimeError(
             f"Insufficient Tencent quote coverage: {count}/{len(codes)} "
@@ -143,7 +197,7 @@ def fetch_market(codes=None, batch_size=100, pause=0.12):
     )
     # Do not replace a usable feed with a newly collected but stale response.
     # A minimum active-quote ratio avoids one fresh symbol masking a stale market snapshot.
-    if in_session and fresh_count < max(100, int(len(codes) * 0.20)):
+    if in_session and fresh_count < max(1, math.ceil(len(codes) * 0.60)):
         raise RuntimeError(
             f"Stale Tencent snapshot during market session: only "
             f"{fresh_count}/{len(codes)} ({fresh_pct}%) quotes are <=15 minutes old"
@@ -152,7 +206,9 @@ def fetch_market(codes=None, batch_size=100, pause=0.12):
     return {
         "schema": 1, "status": "ok",
         "source": "腾讯财经 qt.gtimg.cn（非官方公开行情接口）",
-        "scope": "全市场A股快照" if len(codes) > 2 else "测试股票快照",
+        "scope": "盘中机会观察池（仅覆盖已筛选股票，不是全市场）",
+        "selection_policy": {"score_min": OPPORTUNITY_SCORE_MIN, "max_codes": OPPORTUNITY_CAP, "signal_priority": True},
+        "candidate_count": len(codes), "candidate_codes": codes,
         "universe_source": universe_source,
         "fetched_at": now.isoformat(timespec="seconds"),
         "quote_time_latest": max(times) if times else None,
@@ -161,7 +217,7 @@ def fetch_market(codes=None, batch_size=100, pause=0.12):
         "coverage_pct": coverage, "fresh_quote_count": fresh_count,
         "fresh_quote_pct": fresh_pct, "failed_chunk_count": len(failed_chunks),
         "failed_chunks": failed_chunks[:10], "quotes": quotes,
-        "warning": "腾讯公开行情接口为非官方快照，可能延迟、限流或变更；未返回的股票不代表停牌或无交易。",
+        "warning": "仅监控盘后已筛选的高分观察候选与买入信号；当前盘后筛选覆盖不完整，不能代表全市场机会。腾讯非官方行情可能延迟或限流；未入池股票不提供盘中报价。",
     }
 
 
