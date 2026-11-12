@@ -44,3 +44,13 @@
 - 行情工作流的 GitHub Actions 定时任务是 best-effort，不是实时调度器。运行详情中的 Step Summary 会记录触发方式、行情源时间、采集时间、覆盖率、新鲜报价比例及发布结果。
 - 若页面时间不变，先检查 [quote workflow runs](https://github.com/gritechomepm-art/ashare-quant-personal/actions/workflows/quotes.yml) 是否有近期 `schedule` 运行，再检查 [quote-feed snapshot](https://github.com/gritechomepm-art/ashare-quant-personal/blob/quote-feed/data/quotes.json) 的 `quote_time_latest` 与 `fetched_at`。网页刷新本身不会生成新行情。
 - 为避免连续触发时中途取消采集，行情任务不再取消正在运行的任务，并将单次执行上限调整为10分钟；行情源仍受腾讯接口可用性、延迟及限流影响。
+
+
+## 盘中机会观察池（替代5,511只全市场采集）
+
+- **盘后发现**：仍沿用现有 BaoStock 日线筛选与策略，不在盘中抓取5千多只股票。历史覆盖率必须如实显示；当前覆盖不完整时，候选池不能被视为完整A股机会排名。
+- **盘中监测**：只读取 `data/screen.json` 已计算的股票，优先 `entry_signal=true`，其余仅纳入收盘价3–100元、评分≥55的高分观察候选；每次最多120只。不额外补齐随机股票或用全市场代码库兜底。
+- **行情源校验**：按候选池规模核算成功比例（最低70%），盘中源时间在15分钟内的报价需至少60%；单只股票超过7分钟不得触发盘中预警。报价百分比是**候选池内采集时有效比例**，不是全市场覆盖率。
+- **记录分离**：`quote-feed/data/quotes.json` 只保存候选池报价，`quote-feed/data/intraday_signal_events.json` 保留首次有效盘中信号记录。历史T+1模拟与盘中观察统计继续分开。
+- **本机自选股**：用户的手机自选与持仓仍仅在浏览器本地，不上传服务器。未进入公共候选池的本机个股，不保证有盘中报价；这避免为个人私有持仓自动公开采集。
+- **调度现实**：GitHub Actions cron 属于尽力执行的定时任务，缩小请求量有助于缩短采集耗时，却不能保证每5分钟必定触发。
