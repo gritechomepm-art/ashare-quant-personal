@@ -95,8 +95,9 @@ function bjParts(date=new Date()){const str=new Intl.DateTimeFormat('en-GB',{tim
 function isTradingWindow(){const b=bjParts();return !['Sat','Sun'].includes(b.weekday)&&((b.minutes>=570&&b.minutes<=690)||(b.minutes>=780&&b.minutes<=900))}
 function freshness(){if(PREVIEW)return {label:'合成演示 · 非真实行情',level:'warning',age:null};
  const sourceTime=market.quote_time_latest||market.fetched_at||'';
- const t=Date.parse(sourceTime);if(market.status!=='ok'||!Number.isFinite(t))return {label:'暂无有效行情源时间',level:'danger',age:null};
+ const t=Date.parse(sourceTime);if(!Number.isFinite(t))return {label:'暂无有效行情源时间',level:'danger',age:null};
  const minutes=(Date.now()-t)/60000;if(minutes< -5)return{label:'行情源时间异常',level:'danger',age:minutes};
+ if(market.status!=='ok')return{label:'行情源连接失败 · 最近有效数据 '+sourceTime.slice(0,16).replace('T',' ')+' · 已过 '+Math.max(0,Math.round(minutes))+'分钟 · 禁止盘中预警',level:'danger',age:minutes};
  const bj=bjParts(),sameDay=sourceTime.slice(0,10)===bj.date,sourceMinute=Number(sourceTime.slice(11,13))*60+Number(sourceTime.slice(14,16));
  if(isTradingWindow()&&minutes>15)return{label:'行情源已过期 '+Math.round(minutes)+'分钟 · 暂停盘中预警',level:'danger',age:minutes};
  if(isTradingWindow()&&minutes>7)return{label:'行情源延迟 '+Math.round(minutes)+'分钟 · 暂停盘中预警',level:'warning',age:minutes};
@@ -379,7 +380,7 @@ async function fetchQuotesWithFallback(){
 }
 async function refreshMarket(){if(busy)return;busy=true;$('refreshAll').disabled=true;try{
  if(PREVIEW){market=PREVIEW.market;screen=PREVIEW.screen;signalTracker=PREVIEW.signalTracker||signalTracker}
- else{const [mr,sr,sm,tr]=await Promise.allSettled([fetchQuotesWithFallback(),fetchJSON('./data/screen.json'),loadStockMaster(),fetchJSON('./data/signal_tracker.json')]);if(mr.status==='fulfilled'&&mr.value.schema===1)market=mr.value;else toast('行情快照更新失败，保留上次数据显示');if(sr.status==='fulfilled'&&sr.value.schema===1)screen=sr.value;if(sm.status==='rejected')console.warn('Stock master unavailable:',sm.reason);if(tr.status==='fulfilled'&&tr.value.schema===1)signalTracker=tr.value;else console.warn('Signal tracker unavailable:',tr.reason);}
+ else{const [mr,sr,sm,tr]=await Promise.allSettled([fetchQuotesWithFallback(),fetchJSON('./data/screen.json'),loadStockMaster(),fetchJSON('./data/signal_tracker.json')]);if(mr.status==='fulfilled'&&mr.value.schema===1)market=mr.value;else{market={...market,status:'stale',fetch_error:String(mr.reason||'quote snapshot unavailable')};toast('行情快照更新失败，旧报价已标记失效，禁止作为实时行情使用');}if(sr.status==='fulfilled'&&sr.value.schema===1)screen=sr.value;if(sm.status==='rejected')console.warn('Stock master unavailable:',sm.reason);if(tr.status==='fulfilled'&&tr.value.schema===1)signalTracker=tr.value;else console.warn('Signal tracker unavailable:',tr.reason);}
  ['detailCode','watchCode','posCode','btCode'].forEach(id=>updateStockOptions($(id).value));showStatus();renderScreen();renderWatch();renderPositions();renderTracker();
  }finally{busy=false;$('refreshAll').disabled=false}}
 async function loadHistory(code){
