@@ -162,10 +162,14 @@ function renderLivePanel(){
  const bounds=priceBounds();
  const buyAlerts=live&&bounds.valid?(screen.rows||[]).filter(row=>rowInPriceRange(row)).map(row=>({row,state:liveBuyState(row)})).filter(x=>x.state.status==='BUY').slice(0,12):[];
  $('liveBuyCount').textContent=live?buyAlerts.length+'只':'—';
- $('liveBuySignals').innerHTML=!live
+ const p3=signalTracker.portfolio?.['3']||{};
+ const strategyWarning=p3.total_return_pct<0
+  ?'<div class="market-notice"><strong>策略尚未通过历史验证：</strong>3日组合模拟收益 '+signed(p3.total_return_pct)+'%，最大回撤 '+fmt(p3.max_drawdown_pct)+'%。以下信号只作研究观察，不应直接作为实盘买入依据。</div>'
+  :'';
+ $('liveBuySignals').innerHTML=strategyWarning+(!live
   ?'<div class="fine">非交易时段、行情过期或未取得有效报价。盘中时段为北京时间 09:30–11:30、13:00–15:00；行情快照约5分钟采集一次，不是逐笔行情。</div>'
   :buyAlerts.length?buyAlerts.map(x=>'<div class="live-alert"><div class="live-alert-main"><div class="live-alert-title">'+escapeHTML(x.row.name)+' <span class="tag good">盘中买入预警</span></div><div class="live-alert-meta">'+x.row.code+' · 时段量比 '+fmt(x.state.relativeVolume,2)+' · 区间 '+fmt(x.row.buy_low)+'–'+fmt(x.row.buy_high)+' 元</div></div><div class="live-alert-price">'+fmt(x.state.price)+'元<button class="btn small" data-detail="'+x.row.code+'" style="display:block;margin-top:5px">分析</button></div></div>').join('')
-  :(elapsedSessionFraction()<.125?'<div class="fine">开盘前30分钟，先观察价格与均线；成交量样本尚不稳定，暂不发出盘中买入预警。</div>':'<div class="fine">当前没有股票同时满足日线买入条件、盘中价格区间、均线和成交量确认。</div>');
+  :(elapsedSessionFraction()<.125?'<div class="fine">开盘前30分钟，先观察价格与均线；成交量样本尚不稳定，暂不发出盘中买入预警。</div>':'<div class="fine">当前没有股票同时满足日线买入条件、盘中价格区间、均线和成交量确认。</div>'));
  const sellAlerts=liveSellAlerts.filter(x=>x.live);
  $('liveSellCount').textContent=live?sellAlerts.length+'只':'—';
  $('liveSellSignals').innerHTML=!live
@@ -205,8 +209,12 @@ function renderTracker(){
  $('trackerCoverage').textContent=data.asof
   ?'当前筛选池已追踪 '+(u.stocks_with_current_history||0)+' / '+(u.stocks_in_current_screen||0)+' 只；全市场候选池历史覆盖 '+(u.current_covered_count||0)+' / '+(u.current_candidate_count||0)+'（'+fmt(u.current_coverage_pct,1)+'%）'
   :'历史覆盖情况待同步';
+ const p3=data.portfolio?.['3']||{};
+ const validationWarning=p3.total_return_pct<0
+  ?' <strong>策略验证暂未通过：</strong>3日组合模拟收益 '+signed(p3.total_return_pct)+'%，最大回撤 '+fmt(p3.max_drawdown_pct)+'%；当前盘中买入预警仅供观察，不建议直接用于实盘。'
+  :'';
  $('trackerNotice').innerHTML=data.status==='ready'
-  ?'<strong>历史信号已生成：</strong>回溯 '+(data.lookback_sessions||180)+' 个交易日，共记录 '+(data.signal_count||0)+' 次买入观察。组合模拟按100万元初始资金、最多10只持仓、每笔权益10%进行；统计仅适用于当前已覆盖股票。'
+  ?'<strong>历史信号已生成：</strong>回溯 '+(data.lookback_sessions||180)+' 个交易日，共记录 '+(data.signal_count||0)+' 次买入观察。组合模拟按100万元初始资金、最多10只持仓、每笔权益10%进行；统计仅适用于当前已覆盖股票。'+validationWarning
   :'<strong>信号历史尚未生成。</strong>下一次收盘数据任务完成后，将自动回溯已覆盖股票的买入观察信号并追踪后续表现。';
  const cards=[
   ['初始资金',p.initial_capital_yuan==null?'—':fmt(p.initial_capital_yuan,0)+'元'],
