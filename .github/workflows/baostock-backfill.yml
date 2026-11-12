@@ -47,15 +47,55 @@ jobs:
           fi
       - name: Bootstrap history and update cached bars from verified close quotes
         run: python scripts/ingest_baostock.py --quotes-file /tmp/ashare-quote-feed.json --max-new 300 --max-seconds 1000
-      - name: Commit public history and partial screen only
+      - name: Merge generated public data onto latest main (no rebase conflict)
+        shell: bash
         run: |
+          set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          snapshot="$RUNNER_TEMP/ashare-new-data"
+          mkdir -p "$snapshot/history"
+          cp -a data/history/. "$snapshot/history/"
+          cp data/stocks.json data/screen.json data/baostock_status.json "$snapshot/"
+          # Generated data may have been calculated from an older commit.
+          # Start from latest remote main, overlay new history files, then
+          # publish only a screen/status that does not reduce coverage.
+          git fetch origin main
+          git reset --hard origin/main
+          mkdir -p data/history
+          cp -a "$snapshot/history/." data/history/
+          python - <<'PY'
+          import json
+          import os
+          import shutil
+          from pathlib import Path
+          snap = Path(os.environ["RUNNER_TEMP"]) / "ashare-new-data"
+          dest = Path("data")
+          for filename in ("stocks.json", "screen.json", "baostock_status.json"):
+              incoming = snap / filename
+              previous = dest / filename
+              if not previous.exists():
+                  shutil.copy2(incoming, previous)
+                  continue
+              current = json.loads(previous.read_text(encoding="utf-8"))
+              candidate = json.loads(incoming.read_text(encoding="utf-8"))
+              current_day = str(current.get("asof", ""))
+              candidate_day = str(candidate.get("asof", ""))
+              count_key = "count" if filename == "stocks.json" else "covered_count"
+              current_count = int(current.get(count_key, 0))
+              candidate_count = int(candidate.get(count_key, 0))
+              if (candidate_day > current_day or
+                      (candidate_day == current_day and candidate_count >= current_count)):
+                  shutil.copy2(incoming, previous)
+              else:
+                  print(f"Keep newer {filename}: {current_day}/{current_count} > {candidate_day}/{candidate_count}")
+          PY
           git add data/history/ data/screen.json data/stocks.json data/baostock_status.json
           if ! git diff --cached --quiet; then
             git commit -m 'data: validated BaoStock history batch [skip ci]'
-            git pull --rebase origin main
             git push origin HEAD:main
+          else
+            echo 'No new public EOD data to commit.'
           fi
       - name: Build mobile research web app
         run: python scripts/build_site.py
