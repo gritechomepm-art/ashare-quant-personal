@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from quant_v1 import enrich,backtest_one
+from quant_v1 import enrich,backtest_one,evaluate_entry_signal
 
 CST=ZoneInfo('Asia/Shanghai')
 BASE=Path(__file__).resolve().parents[1]
@@ -117,10 +117,18 @@ def score_history(code,history,quote,asof):
     def numeric(k):
         v=float(last[k])
         return round(v,3) if math.isfinite(v) else None
+    entry = evaluate_entry_signal(frame)
     return {'code':code,'name':quote['name'],'asof':asof,
             'close':numeric('close'),'score':int(last['score']),
-            'signal':bool(last['signal']),'ma5':numeric('ma5'),
-            'ma10':numeric('ma10'),'rsi14':numeric('rsi14'),'atr14':numeric('atr14')}
+            'signal':bool(last['signal']),'entry_signal':entry['status']=='BUY_WATCH',
+            'entry_status':entry['status'],'entry_label':entry['label'],
+            'entry_reasons':entry.get('reasons',[]),
+            'buy_low':entry.get('buy_low'),'buy_high':entry.get('buy_high'),
+            'stop_reference':entry.get('stop_reference'),
+            'target_reference':entry.get('target_reference'),
+            'volume_ratio':entry.get('volume_ratio'),
+            'ma5':numeric('ma5'),'ma10':numeric('ma10'),
+            'rsi14':numeric('rsi14'),'atr14':numeric('atr14')}
 
 def make_screen(quotes_payload,root=ROOT,asof=None):
     asof=asof or now_cst().date().isoformat()
