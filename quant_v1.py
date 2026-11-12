@@ -118,6 +118,83 @@ def evaluate_exit_signal(frame, cost, entry_date=None):
     }
 
 
+
+def backtest_trade_signals(frame, code, maxhold=3, fee=0.0003, stamp=0.0005,
+                          minfee=5, slip=0.001):
+    """V1.3 short-term signal backtest. Signal at close; next-open entry; T+1 exit."""
+    if maxhold not in (1, 2, 3):
+        raise ValueError("V1.3 maxhold must be 1, 2, or 3 trading sessions")
+    x = enrich(frame).reset_index(drop=True)
+    trades = []
+    i = 64
+    while i < len(x) - 1:
+        setup = evaluate_entry_signal(x.iloc[:i + 1])
+        if setup["status"] != "BUY_WATCH":
+            i += 1
+            continue
+        signal_close = float(x.loc[i, "close"])
+        atr = float(x.loc[i, "atr14"])
+        entry_i = i + 1
+        raw_open = float(x.loc[entry_i, "open"])
+        # No chase: next open must remain inside the close-based observation zone.
+        if raw_open < signal_close - 0.25 * atr or raw_open > signal_close + 0.25 * atr:
+            i += 1
+            continue
+        buy = raw_open * (1 + slip)
+        notional = buy * 100
+        buy_fee = max(minfee, notional * fee)
+        stop = buy - 1.5 * atr
+        target = buy + 2.0 * atr
+        last_exit = min(len(x) - 1, entry_i + maxhold)
+        exit_i = None
+        sell = None
+        reason = "time"
+        # T+1: begin exit checks on the session after the simulated purchase.
+        for j in range(entry_i + 1, last_exit + 1):
+            o, h, low, close = [float(x.loc[j, k]) for k in ("open", "high", "low", "close")]
+            if o <= stop:
+                exit_i, sell, reason = j, o * (1 - slip), "gap_stop"
+                break
+            if o >= target:
+                exit_i, sell, reason = j, target * (1 - slip), "take_profit"
+                break
+            if low <= stop and h >= target:
+                exit_i, sell, reason = j, stop * (1 - slip), "stop_both_touched_conservative"
+                break
+            if low <= stop:
+                exit_i, sell, reason = j, stop * (1 - slip), "stop_loss"
+                break
+            if h >= target:
+                exit_i, sell, reason = j, target * (1 - slip), "take_profit"
+                break
+            if close < float(x.loc[j, "ma5"]) or float(x.loc[j, "ma5"]) < float(x.loc[j, "ma10"]):
+                exit_i = min(j + 1, len(x) - 1)
+                raw_sell = float(x.loc[exit_i, "open"]) if exit_i > j else close
+                sell, reason = raw_sell * (1 - slip), "trend_exit"
+                break
+            if j == last_exit:
+                exit_i, sell, reason = j, close * (1 - slip), "time_exit"
+                break
+        if exit_i is None:
+            # Incomplete forward sample: do not invent an exit or count an open trade.
+            break
+        sell_value = sell * 100
+        sell_fee = max(minfee, sell_value * fee) + sell_value * stamp
+        pnl = sell_value - notional - buy_fee - sell_fee
+        trades.append({
+            "code": code,
+            "signal_date": str(x.loc[i, "date"].date()),
+            "entry_date": str(x.loc[entry_i, "date"].date()),
+            "exit_date": str(x.loc[exit_i, "date"].date()),
+            "entry": round(buy, 3), "exit": round(sell, 3),
+            "shares": 100, "bars_held": exit_i - entry_i,
+            "exit_reason": reason, "pnl_yuan": round(pnl, 2),
+            "return_pct": round(100 * pnl / (notional + buy_fee), 3),
+        })
+        i = exit_i + 1
+    return trades
+
+
 def backtest_one(x,code,fee=0.0003,stamp=0.0005,minfee=5,slip=0.001,maxhold=10,stop_atr=1.7):
     """Single-stock simulation: signal at close, next-open entry/exit, 100 shares.
     Models costs and T+1 direction, but NOT suspensions, limit-ups/downs or corporate actions.
@@ -188,7 +265,7 @@ def run(csvdir,out,asof=None,hold=10):
                             'ma5':round(float(last.ma5),3),'ma10':round(float(last.ma10),3),
                             'atr14':round(float(last.atr14),3),
                             'next_action':'WATCH_NEXT_SESSION_OPEN' if last.signal else 'NO_SIGNAL'})
-            trades+=backtest_one(raw,code,maxhold=hold)
+            trades+=backtest_trade_signals(raw,code,maxhold=hold)
         except Exception as e:errors.append({'code':path.stem,'error':str(e)[:200]})
     pd.DataFrame(signals,columns=['code','asof_date','close','score','watch_signal','ma5','ma10','atr14','next_action']).sort_values('score',ascending=False).to_csv(out/'signals.csv',index=False,encoding='utf-8-sig')
     pd.DataFrame(trades,columns=['code','signal_date','entry_date','exit_date','entry','exit','shares','bars_held','exit_reason','pnl_yuan','return_pct']).to_csv(out/'trades.csv',index=False,encoding='utf-8-sig')
@@ -201,7 +278,7 @@ def main():
     a=sub.add_parser('fetch');a.add_argument('--codes',nargs='+',required=True)
     a.add_argument('--start',default='20230101');a.add_argument('--end',default='20261030');a.add_argument('--out',default='data')
     b=sub.add_parser('run');b.add_argument('--data',default='data');b.add_argument('--out',default='results')
-    b.add_argument('--asof');b.add_argument('--hold',type=int,default=10)
+    b.add_argument('--asof');b.add_argument('--hold',type=int,choices=[1,2,3],default=3)
     z=ap.parse_args()
     if z.cmd=='fetch':fetch(z.codes,z.start,z.end,Path(z.out))
     else:run(Path(z.data),Path(z.out),z.asof,z.hold)
