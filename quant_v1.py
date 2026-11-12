@@ -94,7 +94,7 @@ def evaluate_exit_signal(frame, cost, entry_date=None):
     held_bars = None
     if entry_date:
         dates = pd.to_datetime(x.date).dt.strftime("%Y-%m-%d")
-        held_bars = int((dates >= str(entry_date)[:10]).sum())
+        held_bars = int((dates > str(entry_date)[:10]).sum())
         latest_date = str(last.date.date()) if hasattr(last.date, "date") else str(last.date)
         if str(entry_date)[:10] >= latest_date:
             return {"status": "HOLD_T1", "label": "T+1限制，暂不可卖", "stop_price": round(stop, 3),
