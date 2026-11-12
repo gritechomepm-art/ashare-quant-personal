@@ -50,7 +50,7 @@
 <section class="details" id="detail"><div class="hrow"><h2>个股分析</h2><span>日K为历史收盘，快照另行展示</span></div>
 <div class="card"><div class="formrow"><div class="field"><label for="detailCode">股票代码 / 名称</label><input id="detailCode" class="input" list="stockOptions" placeholder="例如 000708 或 平安银行" autocomplete="off"/></div><button class="btn primary" id="analyzeCode">分析</button><button class="btn soft" id="detailStar">☆ 自选</button></div><div class="divider"></div><div id="detailContent" class="empty"><b>输入股票代码</b>点击分析，读取云端历史日线；没有完整数据会如实提示。</div></div>
 </section>
-<section class="details" id="watch"><div class="hrow"><h2>我的自选股</h2><span>仅存于本机</span></div><div class="card"><div class="formrow"><div class="field"><label for="watchCode">股票代码 / 名称</label><input id="watchCode" class="input" list="stockOptions" placeholder="输入代码或股票名称" autocomplete="off" /></div><button class="btn primary" id="watchAdd">添加</button><button class="btn" id="watchRefresh">刷新行情</button></div><p class="hint" id="watchNote">自选股只保存在本机。盘中行情仅覆盖盘后筛出的高分候选；其他股票仍可查看已发布的日线，不保证有盘中报价。</p><div id="watchList" class="empty"><b>暂无自选股</b>添加股票后，联网即可看到最近采集快照。</div></div></section>
+<section class="details" id="watch"><div class="hrow"><h2>我的自选股</h2><span>仅存于本机</span></div><div class="card"><div class="formrow"><div class="field"><label for="watchCode">股票代码 / 名称</label><input id="watchCode" class="input" list="stockOptions" placeholder="输入代码或股票名称" autocomplete="off" /></div><button class="btn primary" id="watchAdd">添加</button><button class="btn" id="watchRefresh">刷新行情</button></div><p class="hint" id="watchNote">自选股和持仓数据保存在本机。启用实时Worker后，仅股票代码会随行情请求发送给Cloudflare与腾讯；未启用时沿用GitHub旧快照。</p><div id="watchList" class="empty"><b>暂无自选股</b>添加股票后，联网即可看到最近采集快照。</div></div></section>
 <section class="details" id="positions"><div class="hrow"><h2>模拟持仓</h2><span>手机浏览器私有数据</span></div><div class="market-notice">这里不会连接真实证券账户。仅使用本机记录的成本与公开行情快照估算盈亏，未扣交易费用，过期行情不得视作实时盈亏。清理浏览器数据可能丢失记录。</div><div class="card"><div class="formrow"><div class="field"><label for="posCode">股票代码 / 名称</label><input id="posCode" class="input" list="stockOptions" placeholder="000708 或 平安银行" autocomplete="off" /></div><div class="field"><label for="posQty">股数</label><input id="posQty" class="input" inputmode="numeric" type="number" min="1" step="1" placeholder="100" /></div><div class="field"><label for="posCost">成本/元</label><input id="posCost" class="input" type="number" min="0.001" step="0.01" placeholder="11.92" /></div><div class="field"><label for="posEntryDate">买入日期</label><input id="posEntryDate" class="input" type="date" /></div><button class="btn primary" id="posAdd">新增</button></div><div class="divider"></div><div id="posList" class="empty"><b>尚无模拟持仓</b>手动添加后保存到当前设备，不会上传到 GitHub。</div><div class="settings-row"><button class="btn small" id="exportPrivate">备份本机记录</button><label class="btn small" for="importPrivate">恢复本机备份</label><input type="file" id="importPrivate" accept=".json" style="display:none"/></div></div></section>
 <section class="details" id="backtest"><div class="hrow"><h2>历史模拟回测</h2><span>单股历史日线 · 模拟</span></div><div class="card"><div class="formrow"><div class="field"><label for="btCode">股票代码 / 名称</label><input id="btCode" class="input" list="stockOptions" placeholder="000708 或 平安银行" autocomplete="off" /></div><div class="field"><label for="btHold">最长持有</label><select class="input" id="btHold"><option value="1">1个交易日</option><option value="2">2个交易日</option><option value="3" selected>3个交易日</option></select></div><button class="btn primary" id="runBt">运行回测</button></div><p class="hint">V1.4短线规则：5项条件收盘确认→次日开盘落在观察区间才模拟买入；T+1后按1.5倍ATR止损、2倍ATR止盈、趋势转弱或持有期限退出。100股/笔，含滑点和费用假设；不模拟涨跌停、停牌及组合资金占用。历史表现不代表未来收益。</p></div><div id="btResults" class="card empty"><b>尚未运行回测</b>选择有至少65个有效交易日的股票，点击运行。</div><div class="market-notice">该回测统计的是单股独立交易，不是组合回测。逐笔盈亏曲线回撤也不是组合最大回撤；不应拿来作为全市场年化收益率。</div></section>
 <section class="details" id="tracker">
@@ -74,6 +74,7 @@
 </div>
 <nav class="sticky-nav" aria-label="导航"><button class="nav-btn active" data-tab="screen"><span class="ico">▤</span>每日选股</button><button class="nav-btn" data-tab="detail"><span class="ico">⌁</span>个股分析</button><button class="nav-btn" data-tab="watch"><span class="ico">☆</span>自选股</button><button class="nav-btn" data-tab="positions"><span class="ico">▣</span>模拟持仓</button><button class="nav-btn" data-tab="backtest"><span class="ico">▥</span>历史回测</button><button class="nav-btn" data-tab="tracker"><span class="ico">◷</span>信号追踪</button></nav>
 <datalist id="stockOptions"></datalist><div class="toast" id="toast" role="status"></div>
+<script src="./realtime-config.js"></script>
 <script>
 (()=>{'use strict';
 const $=id=>document.getElementById(id), $$=s=>Array.from(document.querySelectorAll(s));
@@ -366,8 +367,68 @@ async function loadStockMaster(){
  if(payload?.schema!==1||!payload.stocks)throw Error('股票代码表尚未发布');
  stockMaster=payload.stocks;stockEntries=Object.entries(stockMaster);stockMasterReady=true;return payload;
 }
+// Optional Workers proxy. Source time is always the provider's quote time, never Date.now().
+function realtimeWorkerUrl(){
+ const base=String(window.ASHARE_REALTIME_API||'').trim().replace(/\/+$/,'');
+ return /^https:\/\/[a-z0-9.-]+(?::\d+)?(?:\/[-a-z0-9_/]*)?$/i.test(base)?base:'';
+}
+function realtimeRequestedCodes(){
+ const priority=[...watch,...positions.map(p=>p.code)];
+ const rows=(screen.rows||[]).slice().sort((a,b)=>
+  Number(b.entry_signal===true)-Number(a.entry_signal===true)
+  ||Number(b.score||0)-Number(a.score||0));
+ const qualified=rows.filter(r=>r.entry_signal===true||Number(r.score)>=55).map(r=>r.code);
+ // Top 150 includes private watch/positions first. Private codes leave this device
+ // only in HTTPS quote lookup requests, not in the public GitHub repository.
+ return [...new Set([...priority,...qualified])].filter(validCode).slice(0,150);
+}
+async function fetchRealtimeWorkerQuotes(){
+ const base=realtimeWorkerUrl(),codes=realtimeRequestedCodes();
+ if(!base)throw Error('Worker endpoint not configured');
+ if(!codes.length)throw Error('No screened or privately watched stock codes');
+ const batches=[];
+ for(let i=0;i<codes.length;i+=50)batches.push(codes.slice(i,i+50));
+ const results=await Promise.all(batches.map(async batch=>{
+  const url=base+'/v1/quotes?codes='+encodeURIComponent(batch.join(','));
+  const response=await fetch(url,{cache:'no-store',signal:AbortSignal.timeout(6500)});
+  if(!response.ok)throw Error('Worker returned HTTP '+response.status);
+  const data=await response.json();
+  if(data.schema!==1||data.status!=='ok'||!data.quotes||!data.quote_time_latest)throw Error('Worker returned invalid or stale quotes');
+  return data;
+ }));
+ const quotes=Object.assign({},...results.map(x=>x.quotes));
+ const count=Object.keys(quotes).length;
+ const freshCount=results.reduce((n,x)=>n+Number(x.fresh_quote_count||0),0);
+ const latest=results.map(x=>x.quote_time_latest).filter(Boolean).sort().at(-1);
+ if(!count||!latest)throw Error('Worker returned empty quotes');
+ return {schema:1,status:'ok',source:'腾讯财经（Cloudflare Worker 近实时代理；非官方）',
+  delivery:'Worker 主动行情快照',scope:'候选、自选与模拟持仓的部分股票',
+  fetched_at:results.map(x=>x.fetched_at).filter(Boolean).sort().at(-1),
+  quote_time_latest:latest,count,requested_count:codes.length,
+  coverage_pct:Number((100*count/codes.length).toFixed(2)),
+  fresh_quote_count:freshCount,
+  fresh_quote_pct:Number((100*freshCount/codes.length).toFixed(2)),
+  quotes};
+}
+async function refreshRealtimeQuotes(){
+ if(PREVIEW||!realtimeWorkerUrl()||!isTradingWindow()||document.visibilityState!=='visible'||busy)return;
+ try{
+  const next=await fetchRealtimeWorkerQuotes();
+  market=next;showStatus();renderScreen();renderWatch();renderPositions();
+ }catch(e){
+  console.warn('Worker quote refresh unavailable, will not treat fallback as live:',e.message);
+  // Individual quote timestamps govern live-buy alert eligibility; do not
+  // refresh their timestamps or synthesize values on failures.
+  showStatus();
+ }
+}
+
 // Read last committed public quote snapshot without triggering a frequent Pages rebuild.
 async function fetchQuotesWithFallback(){
+ if(realtimeWorkerUrl()&&isTradingWindow()){
+  try{return await fetchRealtimeWorkerQuotes()}
+  catch(e){console.warn('Live Worker unavailable; safely falling back to timestamped Github quote feed:',e.message)}
+ }
  const host=location.hostname.split('.');
  const repo=decodeURIComponent(location.pathname.split('/').filter(Boolean)[0]||'');
  const owner=host[0];
@@ -574,6 +635,7 @@ $('runBt').addEventListener('click',runBacktest);
 $('trackerHorizon').addEventListener('change',renderTracker);
 ['trackerType','trackerSearch','trackerDateFrom','trackerDateTo'].forEach(id=>$(id).addEventListener(id==='trackerSearch'?'input':'change',renderTracker));
 refreshMarket();setInterval(()=>{if(document.visibilityState==='visible')refreshMarket()},60*1000);
+setInterval(refreshRealtimeQuotes,5000);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshMarket()});
 setInterval(showStatus,60000);
 if('serviceWorker' in navigator&&location.protocol==='https:'&&!PREVIEW)navigator.serviceWorker.register('./sw.js').catch(()=>{});
