@@ -6,11 +6,13 @@ on:
       - '.github/workflows/baostock-backfill.yml'
       - 'scripts/ingest_baostock.py'
       - 'scripts/build_signal_tracker.py'
+      - 'scripts/record_intraday_signals.py'
       - 'scripts/core.py'
       - 'quant_v1.py'
       - 'tests/test_core.py'
       - 'tests/test_trade_signals.py'
       - 'tests/test_signal_tracker.py'
+      - 'tests/test_intraday_signal_recorder.py'
   schedule:
     # 18:00 Beijing on trading weekdays; allow BaoStock's completed EOD bars to settle.
     - cron: '0 10 * * 1-5'
