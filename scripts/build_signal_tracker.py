@@ -205,7 +205,7 @@ def summarize_horizon(events, horizon):
         "median_return_pct": round(float(pd.Series(returns).median()), 3) if returns else None,
         "average_profit_yuan": round(sum(wins) / len(wins), 2) if wins else None,
         "average_loss_yuan": round(sum(losses) / len(losses), 2) if losses else None,
-        "profit_factor": round(sum(wins) / -sum(losses), 3) if losses else (None if not wins else None),
+        "profit_factor": round(sum(wins) / -sum(losses), 3) if losses else ("∞" if wins else None),
         "net_profit_yuan": round(sum(pnls), 2) if pnls else None,
         "event_sequence_max_drawdown_pct": round(max_drawdown, 3) if completed else None,
         "max_consecutive_losses": max_losing_streak if completed else None,
