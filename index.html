@@ -137,7 +137,7 @@ function liveBuyState(row){
  return {status:'BUY',label:'盘中买入预警',price,relativeVolume,quoteTime:q.quote_time};
 }
 
-function showStatus(){const f=freshness();$('statusText').textContent=f.label;$('connectionStatus').className='status-pill '+(f.level==='ok'?'':f.level);$('freshnessChip').textContent=PREVIEW?'全部数据为虚构演示':market.status==='ok'?`行情源 ${market.quote_time_latest?.slice(0,16).replace('T',' ')||'未知'} · 采集 ${market.fetched_at?.slice(11,16)||'未知'}（北京时间）`:f.label;
+function showStatus(){const f=freshness();$('statusText').textContent=f.label;$('connectionStatus').className='status-pill '+(f.level==='ok'?'':f.level);$('freshnessChip').textContent=PREVIEW?'全部数据为虚构演示':market.status==='ok'?`行情源 ${market.quote_time_latest?.slice(0,16).replace('T',' ')||'未知'} · 采集 ${market.fetched_at?.slice(11,16)||'未知'} · 新鲜报价 ${market.fresh_quote_pct==null?'待统计':market.fresh_quote_pct+'%'}（北京时间）`:f.label;
  $('dateChip').textContent=screen.asof?`收盘筛选截至 ${screen.asof}`:'盘后筛选待初始化';}
 function priceBounds(){
  const min=Number($('priceMin')?.value??priceFilter.min??3),max=Number($('priceMax')?.value??priceFilter.max??100);
@@ -537,7 +537,7 @@ $('importPrivate').addEventListener('change',async e=>{try{const file=e.target.f
 $('posEntryDate').value ||= bjParts().date;
 $('runBt').addEventListener('click',runBacktest);
 $('trackerHorizon').addEventListener('change',renderTracker);
-refreshMarket();setInterval(()=>{if(document.visibilityState==='visible')refreshMarket()},5*60*1000);
+refreshMarket();setInterval(()=>{if(document.visibilityState==='visible')refreshMarket()},60*1000);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshMarket()});
 setInterval(showStatus,60000);
 if('serviceWorker' in navigator&&location.protocol==='https:'&&!PREVIEW)navigator.serviceWorker.register('./sw.js').catch(()=>{});
