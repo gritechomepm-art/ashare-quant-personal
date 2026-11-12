@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/quotes.yml'
       - 'scripts/update_quotes.py'
+      - 'tests/test_quotes.py'
       - 'data/stocks.json'
   schedule:
     # UTC 01:00-03:59 and 05:00-07:59 = Beijing 09:00-11:59 and 13:00-15:59.
