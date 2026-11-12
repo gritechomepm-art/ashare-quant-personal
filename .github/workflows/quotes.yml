@@ -1,4 +1,6 @@
 name: AShare full-market quote snapshots
+run-name: A-share quote refresh (${{ github.event_name }})
+
 on:
   push:
     branches: [main]
@@ -9,18 +11,24 @@ on:
       - 'data/stocks.json'
   schedule:
     # UTC 01:00-03:59 and 05:00-07:59 = Beijing 09:00-11:59 and 13:00-15:59.
-    # The market-session guard below allows only 09:30-11:30 and 13:00-15:15.
+    # GitHub schedule is best-effort; the market-session guard is authoritative.
     - cron: '*/5 1-3,5-7 * * 1-5'
   workflow_dispatch:
+
 permissions:
   contents: write
+
+# Do not cancel a quote fetch already in progress when another scheduled or
+# push-triggered run arrives. The job has a bounded timeout and publishes one
+# rolling snapshot to quote-feed.
 concurrency:
   group: ashare-quote-feed
-  cancel-in-progress: true
+  cancel-in-progress: false
+
 jobs:
   intraday:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -35,20 +43,54 @@ jobs:
         shell: bash
         run: |
           python - <<'PY' >> "$GITHUB_OUTPUT"
-          import os
           from datetime import datetime
           from zoneinfo import ZoneInfo
-          # Run only during the A-share session (plus the 15:07 close snapshot).
-          # Pushes and manual dispatches outside these windows must not publish
-          # stale/pre-market quotes as if they were live.
           t = datetime.now(ZoneInfo("Asia/Shanghai"))
           m = t.hour * 60 + t.minute
           ok = t.weekday() < 5 and (570 <= m <= 690 or 780 <= m <= 915)
           print("run=" + str(ok).lower())
+          print("beijing_time=" + t.isoformat(timespec="seconds"))
           PY
+      - name: Record skipped non-market run
+        if: steps.clock.outputs.run != 'true'
+        shell: bash
+        run: |
+          {
+            echo "## A-share quote refresh"
+            echo "- Result: skipped outside the configured trading session"
+            echo "- Beijing time: ${{ steps.clock.outputs.beijing_time }}"
+            echo "- Trigger: ${{ github.event_name }}"
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Fetch complete A-share market snapshot
         if: steps.clock.outputs.run == 'true'
         run: python scripts/update_quotes.py --output /tmp/ashare-latest-quotes.json
+      - name: Validate and summarize fetched snapshot
+        if: steps.clock.outputs.run == 'true'
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          p = json.loads(Path("/tmp/ashare-latest-quotes.json").read_text(encoding="utf-8"))
+          required = ("status", "fetched_at", "quote_time_latest", "count", "requested_count", "fresh_quote_count", "fresh_quote_pct", "quotes")
+          missing = [k for k in required if k not in p]
+          if missing:
+              raise SystemExit("Missing quote snapshot fields: " + ", ".join(missing))
+          if p["status"] != "ok" or not isinstance(p["quotes"], dict) or not p["quotes"]:
+              raise SystemExit("Quote snapshot is not valid; refusing to publish")
+          if int(p["count"]) != len(p["quotes"]):
+              raise SystemExit("Quote count does not match quote map; refusing to publish")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+              f.write("## A-share quote refresh\n")
+              f.write("- Result: validated; publication follows\n")
+              f.write(f"- Trigger: {os.environ.get('GITHUB_EVENT_NAME', 'unknown')}\n")
+              f.write(f"- Source quote time (Beijing): {p.get('quote_time_latest')}\n")
+              f.write(f"- Collected at (Beijing): {p.get('fetched_at')}\n")
+              f.write(f"- Coverage: {p.get('count')}/{p.get('requested_count')} ({p.get('coverage_pct')}%)\n")
+              f.write(f"- Fresh quotes: {p.get('fresh_quote_count')} ({p.get('fresh_quote_pct')}%)\n")
+              f.write(f"- Failed batches: {p.get('failed_chunk_count')}\n")
+          PY
       - name: Publish rolling public quote-feed snapshot
         if: steps.clock.outputs.run == 'true'
         shell: bash
@@ -65,8 +107,9 @@ jobs:
             if ! git diff --cached --quiet; then
               git commit --amend --no-edit
               git push --force-with-lease origin HEAD:quote-feed
+              echo "- Publication: pushed updated quote-feed snapshot" >> "$GITHUB_STEP_SUMMARY"
             else
-              echo 'Snapshot unchanged; no commit needed.'
+              echo "- Publication: snapshot unchanged; no commit needed" >> "$GITHUB_STEP_SUMMARY"
             fi
           else
             git checkout --orphan quote-feed
@@ -76,4 +119,5 @@ jobs:
             git add data/quotes.json
             git commit -m 'data: full-market A-share quote snapshot'
             git push origin HEAD:quote-feed
+            echo "- Publication: created quote-feed branch and pushed snapshot" >> "$GITHUB_STEP_SUMMARY"
           fi

@@ -37,3 +37,10 @@
 - 买卖信号是可解释的研究观察信号，不是自动委托或投资建议；策略参数尚需用完整历史样本做样本外验证。
 - 策略历史回测未完整模拟停牌、涨跌停、历史退市股、分红除权及组合级资金占用；不可用于直接自动交易。
 - 页面公开访问，持仓仅本机存储；建议定期导出本机记录，且不要把私有备份提交到仓库。
+
+
+### 盘中行情更新诊断
+- 盘中行情只发布到独立 `quote-feed` 分支，不触发 Pages 重建；网页每60秒重新读取该分支的快照。
+- 行情工作流的 GitHub Actions 定时任务是 best-effort，不是实时调度器。运行详情中的 Step Summary 会记录触发方式、行情源时间、采集时间、覆盖率、新鲜报价比例及发布结果。
+- 若页面时间不变，先检查 [quote workflow runs](https://github.com/gritechomepm-art/ashare-quant-personal/actions/workflows/quotes.yml) 是否有近期 `schedule` 运行，再检查 [quote-feed snapshot](https://github.com/gritechomepm-art/ashare-quant-personal/blob/quote-feed/data/quotes.json) 的 `quote_time_latest` 与 `fetched_at`。网页刷新本身不会生成新行情。
+- 为避免连续触发时中途取消采集，行情任务不再取消正在运行的任务，并将单次执行上限调整为10分钟；行情源仍受腾讯接口可用性、延迟及限流影响。
