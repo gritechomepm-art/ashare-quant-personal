@@ -79,9 +79,35 @@ def test_horizon_metrics_report_losses_and_drawdown():
     assert result["win_rate_pct"] == 33.33
     assert result["average_profit_yuan"] == 20.0
     assert result["average_loss_yuan"] == -7.5
-    assert result["max_consecutive_losses"] == 2
-    assert result["event_sequence_max_drawdown_pct"] == -1.5
+    assert result["profit_factor"] > 0
+    assert "max_consecutive_losses" not in result
+    assert "event_sequence_max_drawdown_pct" not in result
 
+
+def test_portfolio_metrics_use_cash_and_real_equity_drawdown():
+    dates = ["2026-02-02", "2026-02-03", "2026-02-04", "2026-02-05"]
+    bars = [
+        {"date": dates[0], "open": 10.0, "high": 10.2, "low": 9.8, "close": 10.0, "volume": 1000},
+        {"date": dates[1], "open": 10.0, "high": 10.2, "low": 9.8, "close": 10.0, "volume": 1000},
+        {"date": dates[2], "open": 9.8, "high": 10.0, "low": 9.4, "close": 9.5, "volume": 1000},
+        {"date": dates[3], "open": 9.5, "high": 9.8, "low": 9.3, "close": 9.6, "volume": 1000},
+    ]
+    event = {
+        "code": "000001", "name": "测试股票", "signal_date": dates[0],
+        "entry_status": "ENTERED", "entry_date": dates[1],
+        "score": 90, "volume_ratio": 1.5,
+        "outcomes": {"1": {"status": "COMPLETE", "exit_date": dates[2]}},
+    }
+    result = tracker.simulate_portfolio(
+        [event], {"000001": bars}, 1, initial_capital=100000,
+        max_positions=10, position_size_pct=0.10,
+    )
+    assert result["status"] == "ready"
+    assert result["closed_trades"] == 1
+    assert result["net_profit_yuan"] < 0
+    assert result["max_drawdown_pct"] < 0
+    assert result["max_consecutive_losses"] == 1
+    assert result["initial_capital_yuan"] == 100000
 
 def test_tracker_builds_from_current_screen_and_histories(tmp_path, monkeypatch):
     monkeypatch.setattr(tracker, "enrich", fake_enrich)
@@ -102,3 +128,5 @@ def test_tracker_builds_from_current_screen_and_histories(tmp_path, monkeypatch)
     assert result["universe"]["stocks_with_current_history"] == 1
     assert result["signal_count"] == 1
     assert set(result["metrics"]) == {"1", "2", "3"}
+    assert set(result["portfolio"]) == {"1", "2", "3"}
+    assert result["price_filter"] == {"min": 3.0, "max": 100.0, "unit": "CNY"}
