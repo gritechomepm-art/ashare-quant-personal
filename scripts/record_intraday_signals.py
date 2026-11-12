@@ -11,7 +11,7 @@ CST = ZoneInfo("Asia/Shanghai")
 def elapsed_fraction(now):
     minute = now.hour * 60 + now.minute
     if 570 <= minute <= 690:
-        return min(1.0, max(0.0, (minute - 570) / 120))
+        return min(1.0, max(0.0, (minute - 570) / 240))
     if 780 <= minute <= 915:
         return min(1.0, max(0.0, (minute - 780 + 120) / 240))
     return 0.0
