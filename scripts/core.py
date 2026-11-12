@@ -126,7 +126,7 @@ def score_history(code,history,quote,asof):
             'buy_low':entry.get('buy_low'),'buy_high':entry.get('buy_high'),
             'stop_reference':entry.get('stop_reference'),
             'target_reference':entry.get('target_reference'),
-            'volume_ratio':entry.get('volume_ratio'),
+            'volume_ratio':entry.get('volume_ratio'),'avg_volume5':numeric('vol5_prev'),
             'ma5':numeric('ma5'),'ma10':numeric('ma10'),
             'rsi14':numeric('rsi14'),'atr14':numeric('atr14')}
 
@@ -152,7 +152,7 @@ def make_screen(quotes_payload,root=ROOT,asof=None):
             'total_signals':sum(bool(r.get('entry_signal')) for r in ranked),
             'buy_watch_count':sum(bool(r.get('entry_signal')) for r in ranked),
             'legacy_v1_signal_count':sum(bool(r['signal']) for r in ranked),
-            'rows':ranked[:200],'screened_count':len(ranked),
+            'rows':ranked,'screened_count':len(ranked),
             'warning':'只覆盖历史成功下载且截至当日的股票；未覆盖不等于无信号。'}
 
 def append_bar_from_quote(history,quote,session_date):
