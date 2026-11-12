@@ -111,7 +111,7 @@ async function renderPositions(){
    const item=await loadHistory(p.code),a=enrichJS(item.bars),last=a.at(-1);
    const stop=p.cost-1.5*last.atr14,target=p.cost+2*last.atr14;
    const entryDate=p.entry_date||'';
-   const heldBars=entryDate?a.filter(x=>x.date>=entryDate).length:null;
+   const heldBars=entryDate?a.filter(x=>x.date>entryDate).length:null;
    const today=bjParts().date;
    const usableQuote=r&&f.level!=='danger';
    const current=usableQuote?r.price:last.close;
