@@ -82,14 +82,14 @@ jobs:
           if int(p["count"]) != len(p["quotes"]):
               raise SystemExit("Quote count does not match quote map; refusing to publish")
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
-              f.write("## A-share quote refresh\\n")
-              f.write("- Result: validated; publication follows\\n")
-              f.write(f"- Trigger: {os.environ.get('GITHUB_EVENT_NAME', 'unknown')}\\n")
-              f.write(f"- Source quote time (Beijing): {p.get('quote_time_latest')}\\n")
-              f.write(f"- Collected at (Beijing): {p.get('fetched_at')}\\n")
-              f.write(f"- Coverage: {p.get('count')}/{p.get('requested_count')} ({p.get('coverage_pct')}%)\\n")
-              f.write(f"- Fresh quotes: {p.get('fresh_quote_count')} ({p.get('fresh_quote_pct')}%)\\n")
-              f.write(f"- Failed batches: {p.get('failed_chunk_count')}\\n")
+              f.write("## A-share quote refresh\n")
+              f.write("- Result: validated; publication follows\n")
+              f.write(f"- Trigger: {os.environ.get('GITHUB_EVENT_NAME', 'unknown')}\n")
+              f.write(f"- Source quote time (Beijing): {p.get('quote_time_latest')}\n")
+              f.write(f"- Collected at (Beijing): {p.get('fetched_at')}\n")
+              f.write(f"- Coverage: {p.get('count')}/{p.get('requested_count')} ({p.get('coverage_pct')}%)\n")
+              f.write(f"- Fresh quotes: {p.get('fresh_quote_count')} ({p.get('fresh_quote_pct')}%)\n")
+              f.write(f"- Failed batches: {p.get('failed_chunk_count')}\n")
           PY
       - name: Publish rolling public quote-feed snapshot
         if: steps.clock.outputs.run == 'true'
