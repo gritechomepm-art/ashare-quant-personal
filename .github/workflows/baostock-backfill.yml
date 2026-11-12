@@ -60,7 +60,7 @@ jobs:
           fi
       - name: Build historical signal outcome tracker
         run: python scripts/build_signal_tracker.py --lookback-sessions 180
-      - name: Merge generated public data onto latest main (no rebase conflict)
+      - name: Merge generated public data onto latest main with retry
         shell: bash
         run: |
           set -euo pipefail
@@ -70,20 +70,32 @@ jobs:
           mkdir -p "$snapshot/history"
           cp -a data/history/. "$snapshot/history/"
           cp data/stocks.json data/screen.json data/baostock_status.json data/signal_tracker.json "$snapshot/"
-          # Generated data may have been calculated from an older commit.
-          # Start from latest remote main, overlay new history files, then
-          # publish only a screen/status that does not reduce coverage.
-          git fetch origin main
-          git reset --hard origin/main
-          mkdir -p data/history
-          cp -a "$snapshot/history/." data/history/
-          python - <<'PY'
+          for attempt in 1 2 3; do
+            echo "Merge attempt $attempt/3"
+            git fetch origin main
+            git reset --hard origin/main
+            mkdir -p data/history
+            python - <<'PY'
           import json
           import os
           import shutil
           from pathlib import Path
           snap = Path(os.environ["RUNNER_TEMP"]) / "ashare-new-data"
           dest = Path("data")
+          hist_src = snap / "history"
+          hist_dst = dest / "history"
+          for incoming in hist_src.glob("*.json"):
+              previous = hist_dst / incoming.name
+              candidate = json.loads(incoming.read_text(encoding="utf-8"))
+              if previous.exists():
+                  current = json.loads(previous.read_text(encoding="utf-8"))
+                  old_day = str(current.get("asof", ""))
+                  new_day = str(candidate.get("asof", ""))
+                  old_len = len(current.get("bars", []))
+                  new_len = len(candidate.get("bars", []))
+                  if new_day < old_day or (new_day == old_day and new_len < old_len):
+                      continue
+              shutil.copy2(incoming, previous)
           for filename in ("stocks.json", "screen.json", "baostock_status.json", "signal_tracker.json"):
               incoming = snap / filename
               previous = dest / filename
@@ -94,26 +106,36 @@ jobs:
               candidate = json.loads(incoming.read_text(encoding="utf-8"))
               current_day = str(current.get("asof", ""))
               candidate_day = str(candidate.get("asof", ""))
-              count_key = "count" if filename == "stocks.json" else "covered_count"
-              if filename == "signal_tracker.json":
+              if filename == "stocks.json":
+                  current_count = int(current.get("count", 0))
+                  candidate_count = int(candidate.get("count", 0))
+              elif filename == "signal_tracker.json":
                   current_count = int(current.get("universe", {}).get("stocks_with_current_history", 0))
                   candidate_count = int(candidate.get("universe", {}).get("stocks_with_current_history", 0))
               else:
-                  current_count = int(current.get(count_key, 0))
-                  candidate_count = int(candidate.get(count_key, 0))
+                  current_count = int(current.get("covered_count", 0))
+                  candidate_count = int(candidate.get("covered_count", 0))
               if (candidate_day > current_day or
                       (candidate_day == current_day and candidate_count >= current_count)):
                   shutil.copy2(incoming, previous)
               else:
                   print(f"Keep newer {filename}: {current_day}/{current_count} > {candidate_day}/{candidate_count}")
           PY
-          git add data/history/ data/screen.json data/stocks.json data/baostock_status.json data/signal_tracker.json
-          if ! git diff --cached --quiet; then
+            git add data/history/ data/screen.json data/stocks.json data/baostock_status.json data/signal_tracker.json
+            if git diff --cached --quiet; then
+              echo "No new public EOD data to commit."
+              exit 0
+            fi
             git commit -m 'data: validated BaoStock history batch [skip ci]'
-            git push origin HEAD:main
-          else
-            echo 'No new public EOD data to commit.'
-          fi
+            if git push origin HEAD:main; then
+              echo "Published EOD data successfully."
+              exit 0
+            fi
+            echo "Main moved during publication; retrying against the latest main."
+            sleep 2
+          done
+          echo "Unable to publish EOD data after three attempts."
+          exit 1
       - name: Build mobile research web app
         run: python scripts/build_site.py
       - uses: actions/configure-pages@v5
