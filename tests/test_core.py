@@ -37,6 +37,7 @@ def test_history_and_score_coverage(tmp_path):
     atomic_json(root/'history'/'000708.json',h)
     x=make_screen({'quotes':{'000708':quote}},root,asof='2026-11-10')
     assert x['status']=='complete' and x['covered_count']==1
+    assert len(x['rows'])==1 and x['rows'][0]['avg_volume5'] is not None
     y=make_screen({'quotes':{'000708':quote,'000001':{**quote,'name':'第二只'}}},root,asof='2026-11-10')
     assert y['status']=='partial' and y['covered_count']==1
 
