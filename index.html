@@ -80,6 +80,7 @@ const $=id=>document.getElementById(id), $$=s=>Array.from(document.querySelector
 const PREVIEW=window.__V12_PREVIEW__||null;
 if(PREVIEW)document.body.classList.add('demo');
 let screen={status:'uninitialized',rows:[],coverage_pct:0,eligible_count:0,covered_count:0,total_signals:0};
+let lastEodFetch=0;const EOD_REFRESH_MS=10*60*1000; // 11 MB historical tracker: never re-download every minute
 let signalTracker={status:'uninitialized',events:[],metrics:{}};
 let market={status:'uninitialized',quotes:{}};let stockMaster={};let stockEntries=[];let stockMasterReady=false;let filter='all';let activeTab='screen';let busy=false;
 const STORE='ashare_personal_v12_';
@@ -142,8 +143,8 @@ function liveBuyState(row){
  return {status:'BUY',label:'盘中买入预警',price,relativeVolume,quoteTime:q.quote_time};
 }
 
-function showStatus(){const f=freshness();$('statusText').textContent=f.label;$('connectionStatus').className='status-pill '+(f.level==='ok'?'':f.level);$('freshnessChip').textContent=PREVIEW?'全部数据为虚构演示':market.status==='ok'?`行情源 ${market.quote_time_latest?.slice(0,16).replace('T',' ')||'未知'} · 采集 ${market.fetched_at?.slice(11,16)||'未知'} · 采集时有效报价 ${market.fresh_quote_pct==null?'待统计':market.fresh_quote_pct+'%'} · 当前距行情 ${f.age==null?'未知':Math.max(0,Math.round(f.age))+'分钟'}（北京时间）`:f.label
- $('dateChip').textContent=screen.asof?`收盘筛选截至 ${screen.asof}`:'盘后筛选待初始化';}
+function showStatus(){const f=freshness();$('statusText').textContent=f.label;$('connectionStatus').className='status-pill '+(f.level==='ok'?'':f.level);$('freshnessChip').textContent=PREVIEW?'全部数据为虚构演示':market.status==='ok'?`行情源 ${market.quote_time_latest?.slice(0,16).replace('T',' ')||'未知'} · 采集 ${market.fetched_at?.slice(11,16)||'未知'} · 采集时有效报价 ${market.fresh_quote_pct==null?'待统计':market.fresh_quote_pct+'%'} · 当前距行情 ${f.age==null?'未知':Math.max(0,Math.round(f.age))+'分钟'} · 日线筛选 ${screen.asof||'未更新'}（北京时间）`:f.label
+ $('dateChip').textContent=screen.asof?`收盘选股截至 ${screen.asof} · ${screen.covered_count||0}/${screen.eligible_count||0} 只已覆盖`:'盘后筛选待初始化';}
 function priceBounds(){
  const min=Number($('priceMin')?.value??priceFilter.min??3),max=Number($('priceMax')?.value??priceFilter.max??100);
  return {min,max,valid:Number.isFinite(min)&&Number.isFinite(max)&&min>=0&&max>=min};
@@ -380,7 +381,7 @@ async function fetchQuotesWithFallback(){
 }
 async function refreshMarket(){if(busy)return;busy=true;$('refreshAll').disabled=true;try{
  if(PREVIEW){market=PREVIEW.market;screen=PREVIEW.screen;signalTracker=PREVIEW.signalTracker||signalTracker}
- else{const [mr,sr,sm,tr]=await Promise.allSettled([fetchQuotesWithFallback(),fetchJSON('./data/screen.json'),loadStockMaster(),fetchJSON('./data/signal_tracker.json')]);if(mr.status==='fulfilled'&&mr.value.schema===1)market=mr.value;else{market={...market,status:'stale',fetch_error:String(mr.reason||'quote snapshot unavailable')};toast('行情快照更新失败，旧报价已标记失效，禁止作为实时行情使用');}if(sr.status==='fulfilled'&&sr.value.schema===1)screen=sr.value;if(sm.status==='rejected')console.warn('Stock master unavailable:',sm.reason);if(tr.status==='fulfilled'&&tr.value.schema===1)signalTracker=tr.value;else console.warn('Signal tracker unavailable:',tr.reason);}
+ else{const needEodFetch=Date.now()-lastEodFetch>EOD_REFRESH_MS; const [mr,sr,sm,tr]=await Promise.allSettled([fetchQuotesWithFallback(),needEodFetch?fetchJSON('./data/screen.json'):Promise.resolve(null),loadStockMaster(),needEodFetch?fetchJSON('./data/signal_tracker.json'):Promise.resolve(null)]);if(mr.status==='fulfilled'&&mr.value.schema===1)market=mr.value;else{market={...market,status:'stale',fetch_error:String(mr.reason||'quote snapshot unavailable')};toast('行情快照更新失败，旧报价已标记失效，禁止作为实时行情使用');}if(sr.status==='fulfilled'&&sr.value?.schema===1)screen=sr.value;if(sm.status==='rejected')console.warn('Stock master unavailable:',sm.reason);if(tr.status==='fulfilled'&&tr.value?.schema===1)signalTracker=tr.value;else if(needEodFetch) console.warn('Signal tracker unavailable:',tr.reason);if(needEodFetch)lastEodFetch=Date.now();}
  ['detailCode','watchCode','posCode','btCode'].forEach(id=>updateStockOptions($(id).value));showStatus();renderScreen();renderWatch();renderPositions();renderTracker();
  }finally{busy=false;$('refreshAll').disabled=false}}
 async function loadHistory(code){
