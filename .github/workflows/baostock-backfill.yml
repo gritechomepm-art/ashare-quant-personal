@@ -14,8 +14,10 @@ on:
       - 'tests/test_signal_tracker.py'
       - 'tests/test_intraday_signal_recorder.py'
   schedule:
-    # 18:00 Beijing on trading weekdays; allow BaoStock's completed EOD bars to settle.
-    - cron: '0 10 * * 1-5'
+    # 17:37 and 18:17 Beijing on trading weekdays. GitHub cron is best-effort;
+    # two offset slots reduce the chance that a single missed run leaves old EOD data.
+    - cron: '37 9 * * 1-5'
+    - cron: '17 10 * * 1-5'
   workflow_dispatch:
 permissions:
   contents: write
