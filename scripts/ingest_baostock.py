@@ -110,9 +110,32 @@ def collect(root=ROOT, max_new=300, max_seconds=1000, quotes_file=None):
                 stale.append((full, name))
             else:
                 missing.append((full, name))
-        # Fill never-downloaded symbols first; refresh stale histories only after
-        # initial universe coverage. Prevents restarting at the first codes daily.
-        for full, name in missing + stale:
+        # Freshness comes before breadth: update existing high-priority and
+        # opportunity-pool symbols before spending the bounded budget on new
+        # histories. Do not let thousands of uncached stocks starve existing
+        # historical analyses for multiple trading sessions.
+        priority_codes = set(prioritize)
+        priority_codes.update(
+            str(code).zfill(6) for code in quote_map if str(code).isdigit()
+        )
+        priority_codes.update(
+            str(row.get("code", "")).zfill(6)
+            for row in load_json(root / "screen.json", {}).get("rows", [])
+            if row.get("code") and (row.get("entry_signal") or row.get("score", 0) >= 80)
+        )
+        def urgent(pair):
+            return pair[0] in priority_codes or pair[0][3:] in priority_codes
+        refresh_queue = (
+            [pair for pair in stale if urgent(pair)]
+            + [pair for pair in missing if urgent(pair)]
+            + stale
+            + missing
+        )
+        seen_codes = set()
+        for full, name in refresh_queue:
+            if full in seen_codes:
+                continue
+            seen_codes.add(full)
             code = full[3:]
             if successes >= max_new or checked >= max_new*3 or time.monotonic()-clock > max_seconds:
                 break
