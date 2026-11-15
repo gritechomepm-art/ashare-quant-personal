@@ -6,7 +6,7 @@ import json
 import math
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
@@ -135,7 +135,31 @@ def load_codes():
     return codes, source
 
 
+def verify_quote_source_day(latest_stamp, screening_day, now):
+    """Fail closed when a late run would publish quotes older than EOD screening.
+
+    Delayed GitHub jobs may run outside market hours, including on weekends.
+    Real provider source timestamps must NOT be changed to collection time.
+    """
+    if not latest_stamp:
+        raise RuntimeError("Tencent provider omitted source quote time")
+    try:
+        latest = datetime.fromisoformat(latest_stamp)
+        expected = datetime.strptime(screening_day, "%Y-%m-%d").date()
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("Invalid Tencent source or EOD screening date") from exc
+    if latest.tzinfo is None:
+        raise RuntimeError("Tencent source timestamp must include timezone")
+    if latest.date() < expected:
+        raise RuntimeError(f"Tencent quote source date {latest.date()} older than EOD screen {expected}")
+    age = now - latest
+    if age < timedelta(minutes=-5) or age > timedelta(days=5):
+        raise RuntimeError(f"Tencent quote source timestamp out of bounds: {latest_stamp}")
+    return latest_stamp
+
+
 def fetch_market(codes=None, batch_size=100, pause=0.12):
+    codes_from_screen = codes is None
     if codes is None:
         codes, universe_source = load_codes()
     else:
@@ -203,6 +227,10 @@ def fetch_market(codes=None, batch_size=100, pause=0.12):
             f"{fresh_count}/{len(codes)} ({fresh_pct}%) quotes are <=15 minutes old"
         )
     times = [q["quote_time"] for q in quotes.values() if q.get("quote_time")]
+    latest_source = max(times) if times else None
+    if codes_from_screen:
+        screening = json.loads((ROOT / "data" / "screen.json").read_text(encoding="utf-8"))
+        verify_quote_source_day(latest_source, str(screening.get("asof", "")), now)
     return {
         "schema": 1, "status": "ok",
         "source": "腾讯财经 qt.gtimg.cn（非官方公开行情接口）",
@@ -211,7 +239,7 @@ def fetch_market(codes=None, batch_size=100, pause=0.12):
         "candidate_count": len(codes), "candidate_codes": codes,
         "universe_source": universe_source,
         "fetched_at": now.isoformat(timespec="seconds"),
-        "quote_time_latest": max(times) if times else None,
+        "quote_time_latest": latest_source,
         "market_timezone": "Asia/Shanghai",
         "count": count, "requested_count": len(codes),
         "coverage_pct": coverage, "fresh_quote_count": fresh_count,

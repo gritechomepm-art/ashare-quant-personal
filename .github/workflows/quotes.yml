@@ -13,11 +13,14 @@ on:
       - 'data/screen.json'
       - 'tests/test_opportunity_pool.py'
   schedule:
-    # UTC 01:00-03:59 and 05:00-07:59 = Beijing 09:00-11:59 and 13:00-15:59.
+    # Offset to 03/08/13... UTC to reduce top-of-hour contention. GitHub may delay tasks for hours.
     # GitHub schedule is best-effort; the market-session guard is authoritative.
-    - cron: '*/5 1-3,5-7 * * 1-5'
-    # Dedicated post-close snapshot; Beijing 15:01.
-    - cron: '1 7 * * 1-5'
+    - cron: '3-58/5 1-3,5-7 * * 1-5'
+    # Post-close catch-up target: Beijing 15:11; delayed runs still fetch true source-time quotes.
+    - cron: '11 7 * * 1-5'
+  workflow_run:
+    workflows: ['AShare BaoStock staged history bootstrap']
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -43,28 +46,41 @@ jobs:
         run: python -m pip install pytest
       - name: Validate quote normalization
         run: pytest -q tests/test_quotes.py
-      - name: Check market session
+      - name: Check trigger and actual market clock
         id: clock
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          UPSTREAM_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
         shell: bash
         run: |
           python - <<'PY' >> "$GITHUB_OUTPUT"
+          import os
           from datetime import datetime
           from zoneinfo import ZoneInfo
           t = datetime.now(ZoneInfo("Asia/Shanghai"))
           m = t.hour * 60 + t.minute
-          ok = t.weekday() < 5 and (570 <= m <= 690 or 780 <= m <= 915)
+          in_session = t.weekday() < 5 and (570 <= m <= 690 or 780 <= m <= 900)
+          event = os.getenv("EVENT_NAME", "")
+          upstream = os.getenv("UPSTREAM_CONCLUSION", "")
+          # GitHub scheduled jobs can arrive hours late. Never discard them solely
+          # because it is already after the close: the upstream's REAL quote_time
+          # must be checked and the true date retained in the file.
+          ok = event != "workflow_run" or upstream == "success"
           print("run=" + str(ok).lower())
           print("beijing_time=" + t.isoformat(timespec="seconds"))
+          print("collection_mode=" + ("intraday" if in_session else "after-hours catch-up"))
+          print("trigger=" + event)
           PY
-      - name: Record skipped non-market run
+      - name: Record skipped unsuccessful upstream EOD run
         if: steps.clock.outputs.run != 'true'
         shell: bash
         run: |
           {
             echo "## A-share quote refresh"
-            echo "- Result: skipped outside the configured trading session"
+            echo "- Result: not started because upstream EOD workflow failed"
             echo "- Beijing time: ${{ steps.clock.outputs.beijing_time }}"
             echo "- Trigger: ${{ github.event_name }}"
+            echo "- Collection mode: ${{ steps.clock.outputs.collection_mode }}"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Preserve recorder and close-confirm candidate snapshot before branch switch
         if: steps.clock.outputs.run == 'true'
@@ -72,7 +88,7 @@ jobs:
         run: |
           cp scripts/record_intraday_signals.py /tmp/ashare-record-intraday.py
           cp data/screen.json /tmp/ashare-screen.json
-      - name: Fetch screened opportunity watch-pool snapshot
+      - name: Fetch screened opportunity watch-pool snapshot (including delayed catch-up)
         if: steps.clock.outputs.run == 'true'
         run: python scripts/update_quotes.py --output /tmp/ashare-latest-quotes.json
       - name: Validate and summarize fetched snapshot
