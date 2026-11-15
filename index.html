@@ -143,8 +143,20 @@ function liveBuyState(row){
  return {status:'BUY',label:'盘中买入预警',price,relativeVolume,quoteTime:q.quote_time};
 }
 
-function showStatus(){const f=freshness();$('statusText').textContent=f.label;$('connectionStatus').className='status-pill '+(f.level==='ok'?'':f.level);$('freshnessChip').textContent=PREVIEW?'全部数据为虚构演示':market.status==='ok'?`行情源 ${market.quote_time_latest?.slice(0,16).replace('T',' ')||'未知'} · 采集 ${market.fetched_at?.slice(11,16)||'未知'} · 采集时有效报价 ${market.fresh_quote_pct==null?'待统计':market.fresh_quote_pct+'%'} · 当前距行情 ${f.age==null?'未知':Math.max(0,Math.round(f.age))+'分钟'} · 日线筛选 ${screen.asof||'未更新'}（北京时间）`:f.label
- $('dateChip').textContent=screen.asof?`收盘选股截至 ${screen.asof} · ${screen.covered_count||0}/${screen.eligible_count||0} 只已覆盖`:'盘后筛选待初始化';}
+function showStatus(){
+ const f=freshness(),hasSource=Number.isFinite(f.age);
+ const quoteIsOld=market.status!=='ok'||!hasSource||(isTradingWindow()&&f.age>7)||f.age>15;
+ const sourceStamp=market.quote_time_latest?.slice(0,16).replace('T',' ')||'未知';
+ $('statusText').textContent=f.label;
+ $('connectionStatus').className='status-pill '+(f.level==='ok'?'':f.level);
+ $('freshnessChip').textContent=PREVIEW?'全部数据为虚构演示':
+   (quoteIsOld?'历史行情（非实时；禁用盘中预警）':'有效行情快照')+
+   ' · 腾讯源 '+sourceStamp+
+   ' · 采集 '+(market.fetched_at?.slice(0,16).replace('T',' ')||'未知')+
+   ' · 采集时有效报价 '+(market.fresh_quote_pct==null?'待统计':market.fresh_quote_pct+'%')+
+   ' · 日线筛选 '+(screen.asof||'未更新')+'（北京时间）';
+ $('dateChip').textContent=screen.asof?`收盘选股截至 ${screen.asof} · ${screen.covered_count||0}/${screen.eligible_count||0} 只已覆盖`:'盘后筛选待初始化';
+}
 function priceBounds(){
  const min=Number($('priceMin')?.value??priceFilter.min??3),max=Number($('priceMax')?.value??priceFilter.max??100);
  return {min,max,valid:Number.isFinite(min)&&Number.isFinite(max)&&min>=0&&max>=min};
