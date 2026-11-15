@@ -2,7 +2,10 @@ import sys
 # Trigger a full-universe quote refresh after the BaoStock stock master is published.
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from update_quotes import chunked, market_symbol, parse_tencent_response
+from update_quotes import chunked, market_symbol, parse_tencent_response, verify_quote_source_day
+from datetime import datetime
+from zoneinfo import ZoneInfo
+import pytest
 
 
 def sample_quote(code="000708", name="中信特钢", market="sz"):
@@ -53,11 +56,14 @@ def test_quote_workflow_covers_market_sessions_and_close_snapshot():
     workflow = (root / ".github/workflows/quotes.yml").read_text()
     # GitHub cron is UTC; 01:00-03:59 and 05:00-07:59 cover
     # Beijing morning/afternoon sessions, including the 15:07 close snapshot.
-    assert "*/5 1-3,5-7 * * 1-5" in workflow
-    assert "1 7 * * 1-5" in workflow
+    assert "3-58/5 1-3,5-7 * * 1-5" in workflow
+    assert "11 7 * * 1-5" in workflow
+    assert "workflow_run:" in workflow
+    assert "after-hours catch-up" in workflow
     assert "570 <= m <= 690" in workflow
     assert "780 <= m <= 915" in workflow
     assert "t.weekday() < 5" in workflow
+    assert 'event != "workflow_run" or upstream == "success"' in workflow
     updater = (root / "scripts/update_quotes.py").read_text()
     assert "Stale Tencent snapshot during market session" in updater
     assert "fresh_quote_pct" in updater
@@ -70,3 +76,30 @@ def test_watchlist_defaults_to_score_ranked_candidates():
     assert '<button class="filter active" id="filterAll" data-filter="all">候选股评分</button>' in html
     assert '<button class="filter" id="filterSignals" data-filter="signal">收盘确认信号</button>' in html
     assert "(filter==='all'||s.entry_signal===true||(s.entry_signal===undefined&&s.signal===true))" in html
+
+
+def test_late_friday_quote_can_be_published_over_weekend_without_faking_collection_time():
+    now = datetime(2026, 11, 15, 10, 30, tzinfo=ZoneInfo("Asia/Shanghai"))
+    stamp = "2026-11-13T15:00:02+08:00"
+    assert verify_quote_source_day(stamp, "2026-11-13", now) == stamp
+
+
+def test_quote_older_than_latest_eod_screen_cannot_replace_feed():
+    now = datetime(2026, 11, 15, 10, 30, tzinfo=ZoneInfo("Asia/Shanghai"))
+    with pytest.raises(RuntimeError, match="older than EOD screen"):
+        verify_quote_source_day("2026-11-12T13:33:51+08:00", "2026-11-13", now)
+
+
+def test_quote_source_future_or_far_in_past_is_rejected():
+    now = datetime(2026, 11, 15, 10, 30, tzinfo=ZoneInfo("Asia/Shanghai"))
+    with pytest.raises(RuntimeError, match="out of bounds"):
+        verify_quote_source_day("2026-11-16T11:00:00+08:00", "2026-11-13", now)
+    with pytest.raises(RuntimeError, match="out of bounds"):
+        verify_quote_source_day("2026-11-08T15:00:00+08:00", "2026-11-08", now)
+
+
+def test_eod_scheduler_has_off_peak_backup_slot():
+    root = Path(__file__).resolve().parents[1]
+    workflow = (root / ".github/workflows/baostock-backfill.yml").read_text()
+    assert "37 9 * * 1-5" in workflow
+    assert "17 10 * * 1-5" in workflow
