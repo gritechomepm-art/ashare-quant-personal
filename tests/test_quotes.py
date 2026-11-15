@@ -103,3 +103,11 @@ def test_eod_scheduler_has_off_peak_backup_slot():
     workflow = (root / ".github/workflows/baostock-backfill.yml").read_text()
     assert "37 9 * * 1-5" in workflow
     assert "17 10 * * 1-5" in workflow
+
+
+def test_frontend_does_not_redownload_large_eod_tracker_every_minute():
+    root = Path(__file__).resolve().parents[1]
+    html = (root / "index.html").read_text(encoding="utf-8")
+    assert "EOD_REFRESH_MS=10*60*1000" in html
+    assert "needEodFetch?fetchJSON('./data/signal_tracker.json'):Promise.resolve(null)" in html
+    assert "日线筛选 ${screen.asof||'未更新'}" in html
