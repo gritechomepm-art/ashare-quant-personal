@@ -55,13 +55,13 @@ def test_quote_workflow_covers_market_sessions_and_close_snapshot():
     root = Path(__file__).resolve().parents[1]
     workflow = (root / ".github/workflows/quotes.yml").read_text()
     # GitHub cron is UTC; 01:00-03:59 and 05:00-07:59 cover
-    # Beijing morning/afternoon sessions, including the 15:07 close snapshot.
+    # Beijing morning/afternoon sessions, including the 15:11 close catch-up.
     assert "3-58/5 1-3,5-7 * * 1-5" in workflow
     assert "11 7 * * 1-5" in workflow
     assert "workflow_run:" in workflow
     assert "after-hours catch-up" in workflow
     assert "570 <= m <= 690" in workflow
-    assert "780 <= m <= 915" in workflow
+    assert "780 <= m <= 900" in workflow
     assert "t.weekday() < 5" in workflow
     assert 'event != "workflow_run" or upstream == "success"' in workflow
     updater = (root / "scripts/update_quotes.py").read_text()
