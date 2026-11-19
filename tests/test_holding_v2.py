@@ -81,3 +81,23 @@ assert.equal(paired.profitFactor,5/3);assert.equal(paired.maxDrawdown,null);
     assert "运行四组对比" in html
     assert "loadV2Cohort();" in html
     assert "build_v2_study.js" in build
+
+
+def test_v2_generator_reads_only_actual_history(tmp_path):
+    import json
+    target=tmp_path/"study.json"
+    result=subprocess.run(
+        ["node", "scripts/build_v2_study.js", str(target), "40"],
+        cwd=ROOT, text=True, capture_output=True, timeout=90,
+    )
+    assert result.returncode == 0, result.stdout + "\n" + result.stderr
+    study=json.loads(target.read_text(encoding="utf-8"))
+    assert study["schema"]==2
+    assert study["horizons"]==[1,3,5,10]
+    assert study["stocks_eligible"]>0
+    assert study["cutoff_date"]
+    assert study["comparison"]["live_default_hold"]==3
+    assert study["comparison"]["auto_promotion"] is False
+    for group in ["train","test"]:
+        counts=[study["metrics"]["paired"][group][str(h)]["count"] for h in [1,3,5,10]]
+        assert len(set(counts))==1, "paired results must share identical entry cohort"
