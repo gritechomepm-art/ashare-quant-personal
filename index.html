@@ -307,7 +307,7 @@ async function renderPositions(){
  const cards=await Promise.all(positions.map(async(p,i)=>{
   const r=q[p.code],meta=stockMaster[p.code]||{},name=escapeHTML(r?.name||meta.name||p.code);
   let signal='<span class="tag caution">历史数据待补齐</span>',levels='',detail='尚无足够历史日线，暂不生成卖出结论。';
-  let current=NaN,diff=NaN,priceLabel='无可用报价';
+  let current=NaN,diff=NaN,priceLabel='无可用报价',atrNote='';
   try{
    const item=await loadHistory(p.code),a=enrichJS(item.bars),last=a.at(-1);
    const stop=p.cost-1.5*last.atr14,target=p.cost+2*last.atr14;
@@ -359,11 +359,12 @@ async function renderPositions(){
    signal='<span class="tag '+tag+'">'+label+'</span>';
    detail=reason+(entryDate?' · 买入后完成 '+heldBars+' 个交易日':' · 未记录买入日期，时间退出规则停用');
    levels='<div class="signal-levels"><div><small>参考止损价</small><b>'+fmt(stop)+'元</b></div><div><small>参考止盈价</small><b>'+fmt(target)+'元</b></div><div><small>最新可用价</small><b>'+fmt(current)+'元</b></div><div><small>行情类型</small><b>'+priceLabel+'</b></div></div>';
-   if(liveQuote)detail+=' · 行情时间 '+escapeHTML(r.quote_time||'未知');
+   atrNote='<p class="fine" style="margin:8px 0 0">参考止损=成本价−1.5×ATR14；参考止盈=成本价+2×ATR14。ATR14来自截至 '+escapeHTML(last.date)+' 的最近可用日线，随历史日线更新动态变化；与历史回测固定采用信号日ATR的口径不同。</p>';
+    if(liveQuote)detail+=' · 行情时间 '+escapeHTML(r.quote_time||'未知');
   }catch(e){detail='历史日线未就绪；不生成虚假的卖出信号。';}
   return '<div class="card" style="padding:12px;margin-bottom:9px"><div class="barline"><div><div class="stockname">'+name+' <span class="tag caution">模拟持仓</span></div><div class="stockcode">'+p.code+' · '+p.qty+'股 · 成本 '+fmt(p.cost)+'元/股'+(p.entry_date?' · 买入 '+escapeHTML(p.entry_date):' · 买入日期未记录')+'</div></div>'+signal+'</div>'+
    '<div class="barline" style="margin-top:10px"><div class="numbers '+(diff>0?'up':diff<0?'down':'')+'">'+signed(diff)+'<small>元 · '+priceLabel+'</small></div><button class="btn small" data-remove-pos="'+i+'">删除</button></div>'+
-   levels+'<p class="fine" style="margin:8px 0 0">'+escapeHTML(detail)+'</p></div>';
+   levels+atrNote+'<p class="fine" style="margin:8px 0 0">'+escapeHTML(detail)+'</p></div>';
  })).then(x=>x.join(''));
  if(token===positionRenderToken){
   $('posList').innerHTML=cards;
@@ -500,7 +501,7 @@ function renderHistoryPending(code,err){
     '<button class="btn" data-retry-history="'+code+'">重新检查历史日K</button>'+
   '</div>';
 }
-function btOne(a,code,maxhold){const out=[];let i=64;while(i<a.length-1){const setup=entrySignalJS(a.slice(0,i+1));if(!setup.buy){i++;continue}const en=i+1,signalAtr=a[i].atr14,signalClose=a[i].close,open=a[en].open;if(open<signalClose-.25*signalAtr||open>signalClose+.25*signalAtr){i++;continue}const buy=open*1.001,notional=buy*100,buyfee=Math.max(5,notional*.0003),stop=buy-1.5*signalAtr,target=buy+2*signalAtr;let ex=-1,sell=NaN,reason='持有到期';if(en+maxhold>=a.length)break;const lastExit=en+maxhold;for(let j=en+1;j<=lastExit;j++){const o=a[j].open,h=a[j].high,l=a[j].low,c=a[j].close;if(o<=stop){ex=j;sell=o*.999;reason='跳空止损';break}if(o>=target){ex=j;sell=target*.999;reason='止盈';break}if(l<=stop&&h>=target){ex=j;sell=stop*.999;reason='止损（同日触及两线，保守按止损）';break}if(l<=stop){ex=j;sell=stop*.999;reason='止损';break}if(h>=target){ex=j;sell=target*.999;reason='止盈';break}if(c<a[j].ma5||a[j].ma5<a[j].ma10){if(j<a.length-1){ex=j+1;sell=a[ex].open*.999}else{ex=j;sell=c*.999}reason='趋势转弱';break}if(j===lastExit){ex=j;sell=c*.999;reason='持有期限到';break}}if(ex<0){i++;continue}const proceeds=sell*100,sellfee=Math.max(5,proceeds*.0003)+proceeds*.0005;out.push({code,signalDate:a[i].date,entryDate:a[en].date,exitDate:a[ex].date,entry:buy,exit:sell,pl:proceeds-notional-buyfee-sellfee,reason});i=ex+1}return out;}
+function btOne(a,code,maxhold){const out=[];let i=64;while(i<a.length-1){const setup=entrySignalJS(a.slice(0,i+1));if(!setup.buy){i++;continue}const en=i+1,signalAtr=a[i].atr14,signalClose=a[i].close,open=a[en].open;if(open<signalClose-.25*signalAtr||open>signalClose+.25*signalAtr){i++;continue}const buy=open*1.001,notional=buy*100,buyfee=Math.max(5,notional*.0003),stop=buy-1.5*signalAtr,target=buy+2*signalAtr;let ex=-1,sell=NaN,reason='持有到期';if(en+maxhold>=a.length)break;const lastExit=en+maxhold;for(let j=en+1;j<=lastExit;j++){const o=a[j].open,h=a[j].high,l=a[j].low,c=a[j].close;if(o<=stop){ex=j;sell=o*.999;reason='跳空止损';break}if(o>=target){ex=j;sell=target*.999;reason='止盈';break}if(l<=stop&&h>=target){ex=j;sell=stop*.999;reason='止损（同日触及两线，保守按止损）';break}if(l<=stop){ex=j;sell=stop*.999;reason='止损';break}if(h>=target){ex=j;sell=target*.999;reason='止盈';break}if(j===lastExit){ex=j;sell=c*.999;reason='持有期限到';break}if(c<a[j].ma5||a[j].ma5<a[j].ma10){ex=j+1;sell=a[ex].open*.999;reason='趋势转弱';break}}if(ex<0){i++;continue}const proceeds=sell*100,sellfee=Math.max(5,proceeds*.0003)+proceeds*.0005;out.push({code,signalDate:a[i].date,entryDate:a[en].date,exitDate:a[ex].date,entry:buy,exit:sell,pl:proceeds-notional-buyfee-sellfee,reason});i=ex+1}return out;}
 async function runBacktest(){
  const raw=$('btCode').value.trim(),code=resolveStockInput(raw),hold=Number($('btHold').value);
  if(!code)return toast('请输入6位股票代码或股票名称，并从建议列表选择');
@@ -508,12 +509,15 @@ async function runBacktest(){
  $('btCode').value=canonicalStockInput(code);
  $('btResults').innerHTML='<div class="empty">读取历史日线并执行模拟回测…</div>';
  try{
-  const data=await loadHistory(code),trades=btOne(enrichJS(data.bars),code,hold),wins=trades.filter(t=>t.pl>0),loss=trades.filter(t=>t.pl<0),pl=trades.reduce((sum,t)=>sum+t.pl,0),win=trades.length?wins.length/trades.length*100:null,pf=loss.length?wins.reduce((sum,t)=>sum+t.pl,0)/(-loss.reduce((sum,t)=>sum+t.pl,0)):null;
+  const data=await loadHistory(code),trades=btOne(enrichJS(data.bars),code,hold);
+   const wins=trades.filter(t=>t.pl>0),losses=trades.filter(t=>t.pl<0),flats=trades.filter(t=>t.pl===0),pl=trades.reduce((sum,t)=>sum+t.pl,0);
+   const winAll=trades.length?wins.length/trades.length*100:null,winDecisive=wins.length+losses.length?wins.length/(wins.length+losses.length)*100:null;
+   const grossProfit=wins.reduce((sum,t)=>sum+t.pl,0),grossLoss=-losses.reduce((sum,t)=>sum+t.pl,0),pf=!trades.length?null:grossLoss>0?grossProfit/grossLoss:grossProfit>0?Infinity:null;
   let curve=0,top=0,draw=0;for(const t of trades){curve+=t.pl;top=Math.max(top,curve);draw=Math.min(draw,curve-top)}
   $('btResults').className='card';
   $('btResults').innerHTML='<div class="readonly">模拟回测 · '+escapeHTML(name)+'（'+code+'） · '+data.bars[0].date+' 至 '+data.bars.at(-1).date+'</div>'+
-   '<div class="metric-grid"><div class="metric"><small>完成的模拟交易</small><strong>'+trades.length+'</strong></div><div class="metric"><small>胜率</small><strong>'+(win===null?'—':fmt(win,1)+'%')+'</strong></div><div class="metric"><small>独立交易累计盈亏</small><strong class="'+(pl>=0?'up':'down')+'">'+signed(pl)+'元</strong></div><div class="metric"><small>Profit Factor</small><strong>'+fmt(pf)+'</strong></div></div>'+
-   '<p class="hint">逐笔累计盈亏的最大回撤：'+fmt(draw)+'元（不是组合净值最大回撤）。固定100股；佣金最低5元/边可能显著影响结果。</p>'+
+   '<div class="metric-grid"><div class="metric"><small>完成的模拟交易</small><strong>'+trades.length+'</strong></div><div class="metric"><small>全部交易胜率</small><strong>'+(winAll===null?'—':fmt(winAll,1)+'%')+'</strong></div><div class="metric"><small>胜负交易胜率</small><strong>'+(winDecisive===null?'—':fmt(winDecisive,1)+'%')+'</strong></div><div class="metric"><small>盈利 / 亏损 / 持平</small><strong>'+wins.length+' / '+losses.length+' / '+flats.length+'</strong></div><div class="metric"><small>独立交易累计盈亏</small><strong class="'+(pl>=0?'up':'down')+'">'+signed(pl)+'元</strong></div><div class="metric"><small>Profit Factor</small><strong>'+(pf===Infinity?'∞（无亏损交易）':fmt(pf))+'</strong></div></div>'+
+   '<p class="hint">已平仓逐笔累计盈亏最大回撤：'+fmt(Math.abs(draw))+'元。仅按已平仓交易累计盈亏计算，不含持仓期间浮动盈亏，也不是组合净值最大回撤。固定100股；佣金最低5元/边可能显著影响结果。</p>'+
    '<div class="scroll-x"><table class="mini-table"><thead><tr><th>买入日 / 卖出日</th><th>退出原因</th><th>交易盈亏</th></tr></thead><tbody>'+(trades.length?trades.slice(-30).reverse().map(x=>'<tr><td>'+x.entryDate+'<div class="fine">'+x.exitDate+'</div></td><td>'+x.reason+'</td><td class="'+(x.pl>=0?'up':'down')+'">'+signed(x.pl)+'元</td></tr>').join(''):'<tr><td colspan="3">该样本内没有完成的模拟交易</td></tr>')+'</tbody></table></div>';
  }catch(e){
   $('btResults').className='card empty';
