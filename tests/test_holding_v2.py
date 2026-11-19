@@ -101,3 +101,32 @@ def test_v2_generator_reads_only_actual_history(tmp_path):
     for group in ["train","test"]:
         counts=[study["metrics"]["paired"][group][str(h)]["count"] for h in [1,3,5,10]]
         assert len(set(counts))==1, "paired results must share identical entry cohort"
+
+    # V2.1 freezes the initially published holdout. Future data must not move it.
+    assert study["cutoff_date"]=="2026-07-21"
+    assert study["prospective"]["start_date"]=="2026-11-20"
+    assert study["prospective"]["auto_promotion"] is False
+    assert study["diagnostic"]["candidate_promotion"] is False
+    assert study["diagnostic"]["holdout_reused_for_diagnostics"] is True
+    for part in ("train","test"):
+        stats=study["diagnostic"][part]
+        assert stats["count"]==study["metrics"]["paired"][part]["3"]["count"]
+        assert stats["priceAtLeast20"]["count"]<=stats["count"]
+        if stats["count"]:
+            assert stats["avgGrossPriceReturnPct"] is not None
+            assert stats["avgEstimatedCostDragPp"] is not None
+            # Cost drag exactly links raw entry/exit price returns to net returns.
+            diff=stats["avgGrossPriceReturnPct"]-stats["avgNet100SharesPct"]
+            assert abs(diff-stats["avgEstimatedCostDragPp"])<1e-8
+            assert stats["avgNetMinimum5000NotionalPct"] is not None
+
+
+def test_v21_frontend_research_is_not_live_signal():
+    text=(ROOT/"index.html").read_text(encoding="utf-8")
+    generator=(ROOT/"scripts"/"build_v2_study.js").read_text(encoding="utf-8")
+    assert "v21DiagnosticBlock(data)" in text
+    assert "冻结在2026-07-21" in text
+    assert "2026-11-20" in text
+    assert "candidate_promotion:false" in generator
+    assert "auto_promotion:false" in generator
+    assert "const cutDate='2026-07-21'" in generator
