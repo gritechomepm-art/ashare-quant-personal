@@ -25,6 +25,10 @@ def main():
     # No API calls, no changes to data/ or quote-feed, and no trading signals published.
     subprocess.run(['node', str(BASE/'scripts'/'build_v2_study.js'), str(data/'backtest_v2.json')],
                    cwd=BASE, check=True, timeout=140)
+    # A second, bounded research-only build using the exact same public history.
+    # Does not affect production entry signals or user positions.
+    subprocess.run(['node', str(BASE/'scripts'/'build_entry_quality_v22.js'), str(data/'entry_quality_v22.json')],
+                   cwd=BASE, check=True, timeout=140)
     (site/'.nojekyll').touch()
     print('Public site files:',len(list(site.rglob('*'))))
 
