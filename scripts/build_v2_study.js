@@ -43,7 +43,9 @@ if (!all.length) throw Error('No valid history — refusing to publish synthetic
 const threshold = Math.max(1, Math.ceil(all.length*.25));
 let calendar=[...dateFrequency].filter(([,count])=>count>=threshold).map(([date])=>date).sort();
 if (calendar.length < 100) throw Error('Insufficient common calendar to define chronological split');
-const cutDate=calendar[Math.floor(calendar.length*.70)];
+// Preserve the first published historical holdout; never slide old OOS rows into training.
+const cutDate='2026-07-21';
+const prospectiveStart='2026-11-20';
 let usable=0, staleForHoldout=0, latest='', earliest='';
 for (const {code,bars} of all) {
   try {
@@ -91,10 +93,49 @@ const comparison={
   live_default_hold:3,
   auto_promotion:false
 };
+// Exploratory diagnostics only. The original 2026 holdout was already examined;
+// it must NOT be reused as a pristine model-selection set.
+function avg(vals){return vals.length?vals.reduce((s,v)=>s+v,0)/vals.length:null;}
+function netWithShares(t,shares){
+ const buyAmount=t.entry*shares,sellAmount=t.exit*shares;
+ const buyFee=Math.max(5,buyAmount*.0003),sellFee=Math.max(5,sellAmount*.0003)+sellAmount*.0005;
+ return 100*(sellAmount-buyAmount-buyFee-sellFee)/(buyAmount+buyFee);
+}
+function diagnose(trades){
+ const n=trades.length, gross=[],net=[],drag=[],notional5000=[];
+ const exits={},above20=[];
+ for(const t of trades){
+   const price=t.entry/1.001; // next-session open is observable before hypothetical entry
+   const preCostExit=t.exit/.999;
+   const raw=100*(preCostExit-price)/price;
+   gross.push(raw);net.push(t.returnPct);drag.push(raw-t.returnPct);
+   const shares=Math.max(100,Math.ceil(5000/t.entry/100)*100);
+   notional5000.push(netWithShares(t,shares));
+   exits[t.reason]=(exits[t.reason]||0)+1;
+   if(price>=20)above20.push(t.returnPct);
+ }
+ return {
+   count:n, avgGrossPriceReturnPct:avg(gross),avgNet100SharesPct:avg(net),
+   avgEstimatedCostDragPp:avg(drag), avgNetMinimum5000NotionalPct:avg(notional5000),
+   priceAtLeast20:{count:above20.length,avgNet100SharesPct:avg(above20)},
+   exitReasons:exits
+ };
+}
+const diagnostic={train:diagnose(paired.train[3]),test:diagnose(paired.test[3]),
+  methodology:'同一批3日信号；gross为买卖原始价格差，drag为含滑点、佣金、印花税后平均净收益差。5000元情景按100股整数倍增加股数，未模拟资金容量、滑点随单量变化或资金占用，不是实盘组合。入场价≥20元筛选属于已探索的候选，不等于独立验证或新默认策略。',
+  candidate_promotion:false,holdout_reused_for_diagnostics:true};
+const prospectiveTrades=paired.test[3].filter(t=>t.entryDate>=prospectiveStart);
+const prospectiveStocks=new Set(prospectiveTrades.map(t=>t.code)).size;
+const prospective={start_date:prospectiveStart,completed_3day_paired_signals:prospectiveTrades.length,
+  distinct_stocks:prospectiveStocks,
+  min_rule:'至少100个具有完整10日后续窗口的匹配信号，来自至少30只不同股票',
+  status:prospectiveTrades.length>=100&&prospectiveStocks>=30?'OBSERVATIONS_AVAILABLE_REVIEW_REQUIRED':'WAIT_FOR_FUTURE_SAMPLES',
+  auto_promotion:false,
+  note:'2026-11-20 起新增的真实日线才可作为前瞻观察；不能重新把已分析的历史测试集称为全新样本。'};
 const report={
   schema:2,model:'A-share V2.0 single-stock rules, multi-horizon paired and sequential',
   generated_at:new Date().toISOString(), cutoff_date:cutDate,
-  split:'First 70% of common trading calendar is training; later 30% held out by date. Train entries must fully exit before cutoff; test entries must be >=cutoff. Paired cohort requires the full 10-session horizon.',
+  split:'Historical split frozen at 2026-07-21 (the original V2.0 70/30 boundary). Train entries must fully exit before this date; historical test entries start no earlier than this date. The 10-session matched cohort excludes incomplete future windows. Optimisation scenarios that inspect historical test are exploratory, not pristine OOS evidence.',
   cutoff_common_calendar_days:calendar.length,
   date_earliest:earliest, date_latest:latest,
   history_files_scanned:scanned, stocks_eligible:usable,
@@ -103,7 +144,7 @@ const report={
   horizons:BT.HORIZONS,price_filter:'none; mirrors current single-stock backtest',
   assumptions:'100 shares, 0.1% each-side slippage, max(5 RMB, 0.03%) each-side commission, 0.05% sell stamp; T+1; same signal-date ATR; next-day opening no-chase check; conservative same-bar stop precedence; no live executable prices.',
   caveats:'Incomplete universe, no delistings, no suspension/limit-up fill simulation, no corporate action adjustments. Paired signals can overlap; pooled averages are not portfolio returns. Parameters have not been tuned on holdout.',
-  metrics,comparison
+  metrics,comparison,diagnostic,prospective
 };
 fs.mkdirSync(path.dirname(outPath),{recursive:true});
 fs.writeFileSync(outPath,JSON.stringify(report,null,2)+'\n','utf8');
@@ -113,5 +154,5 @@ console.log('V2 holding study:',JSON.stringify({
   trainStocks:pairSymbols.train.size,testStocks:pairSymbols.test.size,
   train3:train['3'].avgReturnPct,train5:train['5'].avgReturnPct,
   oos3:test['3'].avgReturnPct,oos5:test['5'].avgReturnPct,
-  status:comparison.evidence_status,output:outPath
+  status:comparison.evidence_status,trainGross:diagnostic.train.avgGrossPriceReturnPct,oosGross:diagnostic.test.avgGrossPriceReturnPct,prospectiveCount:prospectiveTrades.length,output:outPath
 }));
