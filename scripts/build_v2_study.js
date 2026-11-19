@@ -19,7 +19,9 @@ const nonoverlap = {all:buckets(), train:buckets(), test:buckets()};
 const pairSymbols = {train:new Set(),test:new Set()};
 const all = [], dateFrequency = new Map();
 let invalid = 0, scanned = 0;
-const files = fs.readdirSync(historyDir).filter(x => /^\d{6}\.json$/.test(x)).sort();
+const testLimit = Number(process.argv[3] || 0);
+const sourceFiles = fs.readdirSync(historyDir).filter(x => /^\d{6}\.json$/.test(x)).sort();
+const files = Number.isInteger(testLimit) && testLimit > 0 ? sourceFiles.slice(0,testLimit) : sourceFiles;
 for (const filename of files) {
   scanned++;
   try {
