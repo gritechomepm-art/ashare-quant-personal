@@ -213,7 +213,7 @@ function renderScreen(){
   const qrow=q[r.code],liveState=liveBuyState(r),isBuy=r.entry_signal===true;
   const old=r.entry_signal===undefined&&r.signal===true;
   const tag=isBuy?'<span class="tag good">收盘买入观察</span>':old?'<span class="tag caution">旧版观察</span>':'<span class="tag">等待</span>';
-  const liveTag=liveState.status==='BUY'?'<span class="tag good">盘中买入预警</span>':liveState.status==='NO_CHASE'?'<span class="tag caution">不追高</span>':'';
+  const liveTag=live&&liveState.status==='BUY'?'<span class="tag good">盘中买入预警</span>':liveState.status==='NO_CHASE'?'<span class="tag caution">不追高</span>':'';
   const price=priceForRow(r),livePrice=isLiveQuote(qrow);
   const plan=isBuy&&Number.isFinite(r.buy_low)&&Number.isFinite(r.buy_high)?'<div class="fine">观察区间 '+fmt(r.buy_low)+'–'+fmt(r.buy_high)+'元 · 止损参考 '+fmt(r.stop_reference)+'元</div>':'';
   return '<div class="listrow"><div><div class="stockname">'+escapeHTML(r.name)+' '+tag+' '+liveTag+'</div><div class="stockcode">'+escapeHTML(r.code)+' · '+escapeHTML(r.asof)+' · 评分 '+r.score+'/100 · '+(livePrice?'盘中快照':'最近价格')+'</div>'+plan+'</div><div class="numbers">'+fmt(price)+'<small>元'+(qrow&&hasRecentQuote(qrow)?' · '+signed(qrow.change_pct)+'%':' · 收盘/旧快照')+'</small></div><button class="btn small" data-detail="'+r.code+'">详情</button></div>';
@@ -451,10 +451,12 @@ async function analyze(input){
  try{
   const item=await loadHistory(code),a=enrichJS(item.bars),last=a.at(-1),quote=market.quotes?.[code];
   const plan=entrySignalJS(a);
+  const staleHistory=!!(screen.asof && last.date < screen.asof);
+  const historyNotice=staleHistory?'<div class="market-notice" role="status"><b>历史日线待补齐</b><p>当前该股日线截至 '+escapeHTML(last.date)+'，市场收盘数据日期为 '+escapeHTML(screen.asof)+'。以下指标仅供历史参考，不能作为最新买卖信号。</p></div>':'';
   const liveRow={code,asof:last.date,entry_signal:plan.buy,buy_low:plan.buyLow,buy_high:plan.buyHigh,
    ma5:last.ma5,ma10:last.ma10,avg_volume5:last.volPrev};
-  const liveState=liveBuyState(liveRow),live= isLiveQuote(quote);
-  const signalTag=plan.buy?'<span class="tag good">收盘买入观察</span>':'<span class="tag caution">收盘暂不买入</span>';
+  const liveState=liveBuyState(liveRow),live= isLiveQuote(quote)&&!staleHistory;
+  const signalTag=staleHistory?'<span class="tag caution">历史信号 · 待更新</span>':plan.buy?'<span class="tag good">收盘买入观察</span>':'<span class="tag caution">收盘暂不买入</span>';
   const reasonText=plan.buy?'全部5项收盘买入条件通过。次日仅在盘中价格、均线和量能再次确认后观察。':'未通过：'+plan.failed.join('；');
   const liveTag=liveState.status==='BUY'?'<span class="tag good">盘中买入预警</span>':'<span class="tag caution">'+escapeHTML(live?liveState.label:'非盘中有效行情')+'</span>';
   const quotePrice=hasRecentQuote(quote)?fmt(Number(quote.price))+'元':'—';
@@ -468,7 +470,7 @@ async function analyze(input){
   $('detailContent').className='';
   $('detailContent').innerHTML='<div class="barline"><div><div class="readonly">'+escapeHTML(name)+' · '+code+'</div><div style="font-size:26px;font-weight:800;margin:5px 0">'+fmt(last.close)+' <small style="font-size:12px;color:var(--muted)">元 · 最近完整收盘</small></div><div class="fine">日线截至 '+last.date+' · '+(item.adjust==='none'?'不复权':'数据源复权未知')+'</div></div>'+signalTag+'</div>'+
    '<div class="metric-grid"><div class="metric"><small>日线MA5</small><strong>'+fmt(last.ma5)+'</strong></div><div class="metric"><small>日线MA10</small><strong>'+fmt(last.ma10)+'</strong></div><div class="metric"><small>RSI14</small><strong>'+fmt(last.rsi14,1)+'</strong></div><div class="metric"><small>ATR14</small><strong>'+fmt(last.atr14,3)+'</strong></div></div>'+
-   liveBox+planBox+graph(a)+'<p class="hint">盘中行情来自腾讯公开行情快照，约5分钟采集一次，不是交易所逐笔推送；实际行情可能延迟。若已有持仓，请在模拟持仓中录入成本和买入日期以查看对应卖出预警。</p>';
+   historyNotice+liveBox+planBox+graph(a)+'<p class="hint">盘中行情来自腾讯公开行情快照，约5分钟采集一次，不是交易所逐笔推送；实际行情可能延迟。若已有持仓，请在模拟持仓中录入成本和买入日期以查看对应卖出预警。</p>';
  }catch(e){renderHistoryPending(code,e);}
 }
 function renderHistoryPending(code,err){
