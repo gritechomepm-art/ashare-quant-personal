@@ -51,7 +51,7 @@
 <div class="card"><div class="formrow"><div class="field"><label for="detailCode">股票代码 / 名称</label><input id="detailCode" class="input" list="stockOptions" placeholder="例如 000708 或 平安银行" autocomplete="off"/></div><button class="btn primary" id="analyzeCode">分析</button><button class="btn soft" id="detailStar">☆ 自选</button></div><div class="divider"></div><div id="detailContent" class="empty"><b>输入股票代码</b>点击分析，读取云端历史日线；没有完整数据会如实提示。</div></div>
 </section>
 <section class="details" id="watch"><div class="hrow"><h2>我的自选股</h2><span>仅存于本机</span></div><div class="card"><div class="formrow"><div class="field"><label for="watchCode">股票代码 / 名称</label><input id="watchCode" class="input" list="stockOptions" placeholder="输入代码或股票名称" autocomplete="off" /></div><button class="btn primary" id="watchAdd">添加</button><button class="btn" id="watchRefresh">刷新行情</button></div><p class="hint" id="watchNote">自选股只保存在本机。盘中行情仅覆盖盘后筛出的高分候选；其他股票仍可查看已发布的日线，不保证有盘中报价。</p><div id="watchList" class="empty"><b>暂无自选股</b>添加股票后，联网即可看到最近采集快照。</div></div></section>
-<section class="details" id="positions"><div class="hrow"><h2>模拟持仓</h2><span>手机浏览器私有数据</span></div><div class="market-notice">这里不会连接真实证券账户。仅使用本机记录的成本与公开行情快照估算盈亏，未扣交易费用，过期行情不得视作实时盈亏。清理浏览器数据可能丢失记录。</div><div class="card"><div class="formrow"><div class="field"><label for="posCode">股票代码 / 名称</label><input id="posCode" class="input" list="stockOptions" placeholder="000708 或 平安银行" autocomplete="off" /></div><div class="field"><label for="posQty">股数</label><input id="posQty" class="input" inputmode="numeric" type="number" min="1" step="1" placeholder="100" /></div><div class="field"><label for="posCost">成本/元</label><input id="posCost" class="input" type="number" min="0.001" step="0.01" placeholder="11.92" /></div><div class="field"><label for="posEntryDate">买入日期</label><input id="posEntryDate" class="input" type="date" /></div><button class="btn primary" id="posAdd">新增</button></div><div class="divider"></div><div id="posList" class="empty"><b>尚无模拟持仓</b>手动添加后保存到当前设备，不会上传到 GitHub。</div><div class="settings-row"><button class="btn small" id="exportPrivate">备份本机记录</button><label class="btn small" for="importPrivate">恢复本机备份</label><input type="file" id="importPrivate" accept=".json" style="display:none"/></div></div></section>
+<section class="details" id="positions"><div class="hrow"><h2>模拟持仓</h2><span>手机浏览器私有数据</span></div><div class="market-notice">这里不会连接真实证券账户。仅使用本机记录的成本与公开行情快照估算盈亏，未扣交易费用，过期行情不得视作实时盈亏。清理浏览器数据可能丢失记录。</div><div class="card"><p class="hint">固定ATR止损、止盈仅用于可从历史日线核验的本策略信号：买入前一交易日满足收盘5项条件，次日开盘位于买入观察区间。旧持仓必须由你确认锁定；无法核验时不生成ATR风险线或ATR卖出预警。价格仍基于本机录入的成本，可能与回测模拟成交价不同。</p><div class="formrow"><div class="field"><label for="posCode">股票代码 / 名称</label><input id="posCode" class="input" list="stockOptions" placeholder="000708 或 平安银行" autocomplete="off" /></div><div class="field"><label for="posQty">股数</label><input id="posQty" class="input" inputmode="numeric" type="number" min="1" step="1" placeholder="100" /></div><div class="field"><label for="posCost">成本/元</label><input id="posCost" class="input" type="number" min="0.001" step="0.01" placeholder="11.92" /></div><div class="field"><label for="posEntryDate">买入日期</label><input id="posEntryDate" class="input" type="date" /></div><button class="btn primary" id="posAdd">新增</button></div><div class="divider"></div><div id="posList" class="empty"><b>尚无模拟持仓</b>手动添加后保存到当前设备，不会上传到 GitHub。</div><div class="settings-row"><button class="btn small" id="exportPrivate">备份本机记录</button><label class="btn small" for="importPrivate">恢复本机备份</label><input type="file" id="importPrivate" accept=".json" style="display:none"/></div></div></section>
 <section class="details" id="backtest"><div class="hrow"><h2>历史模拟回测</h2><span>单股历史日线 · 模拟</span></div><div class="card"><div class="formrow"><div class="field"><label for="btCode">股票代码 / 名称</label><input id="btCode" class="input" list="stockOptions" placeholder="000708 或 平安银行" autocomplete="off" /></div><div class="field"><label for="btHold">最长持有</label><select class="input" id="btHold"><option value="1">1个交易日</option><option value="2">2个交易日</option><option value="3" selected>3个交易日</option></select></div><button class="btn primary" id="runBt">运行回测</button></div><p class="hint">V1.4短线规则：5项条件收盘确认→次日开盘落在观察区间才模拟买入；T+1后按1.5倍ATR止损、2倍ATR止盈、趋势转弱或持有期限退出。100股/笔，含滑点和费用假设；不模拟涨跌停、停牌及组合资金占用。历史表现不代表未来收益。</p></div><div id="btResults" class="card empty"><b>尚未运行回测</b>选择有至少65个有效交易日的股票，点击运行。</div><div class="market-notice">该回测统计的是单股独立交易，不是组合回测。逐笔盈亏曲线回撤也不是组合最大回撤；不应拿来作为全市场年化收益率。</div></section>
 <section class="details" id="tracker">
  <div class="hrow"><h2>信号追踪与策略绩效</h2><span id="trackerAsOf">等待历史追踪数据</span></div>
@@ -310,7 +310,8 @@ async function renderPositions(){
   let current=NaN,diff=NaN,priceLabel='无可用报价',atrNote='';
   try{
    const item=await loadHistory(p.code),a=enrichJS(item.bars),last=a.at(-1);
-   const stop=p.cost-1.5*last.atr14,target=p.cost+2*last.atr14;
+   const atrState=positionAtrBasis(p,a);
+    const stop=atrState.valid?p.cost-1.5*atrState.atr:NaN,target=atrState.valid?p.cost+2*atrState.atr:NaN;
    const entryDate=p.entry_date||'';
    const heldBars=entryDate?a.filter(x=>x.date>entryDate).length:null;
    const today=bjParts().date;
@@ -318,9 +319,9 @@ async function renderPositions(){
    current=recentQuote?Number(r.price):Number(last.close);
    diff=(current-p.cost)*p.qty;
    priceLabel=liveQuote?'盘中行情':recentQuote?'最近行情快照':'最近收盘价';
-   const hitStop=current<=stop,hitTarget=current>=target;
+   const hitStop=atrState.valid&&current<=stop,hitTarget=atrState.valid&&current>=target;
    const t1Locked=entryDate&&entryDate>=today,t1Unknown=!entryDate;
-   let label='继续观察持有',reason='止损、止盈、趋势和持有期限条件均未触发',tag='hold';
+   let label=atrState.valid?'继续观察持有':'ATR基准待核验',reason=atrState.valid?'止损、止盈、趋势和持有期限条件均未触发':'未确认策略买入信号，ATR止损和止盈预警暂停；趋势与持有期限仍可独立观察。',tag=atrState.valid?'hold':'caution';
    if(liveQuote){
     if(t1Unknown){label='买入日期缺失 · 卖出预警暂停';reason='未记录买入日期，无法核验A股T+1限制；请补录买入日期后再生成卖出预警。';tag='caution';}
     else if(t1Locked&&(hitStop||hitTarget)){
@@ -359,7 +360,11 @@ async function renderPositions(){
    signal='<span class="tag '+tag+'">'+label+'</span>';
    detail=reason+(entryDate?' · 买入后完成 '+heldBars+' 个交易日':' · 未记录买入日期，时间退出规则停用');
    levels='<div class="signal-levels"><div><small>参考止损价</small><b>'+fmt(stop)+'元</b></div><div><small>参考止盈价</small><b>'+fmt(target)+'元</b></div><div><small>最新可用价</small><b>'+fmt(current)+'元</b></div><div><small>行情类型</small><b>'+priceLabel+'</b></div></div>';
-   atrNote='<p class="fine" style="margin:8px 0 0">参考止损=成本价−1.5×ATR14；参考止盈=成本价+2×ATR14。ATR14来自截至 '+escapeHTML(last.date)+' 的最近可用日线，随历史日线更新动态变化；与历史回测固定采用信号日ATR的口径不同。</p>';
+   atrNote=atrState.valid
+     ?'<p class="fine" style="margin:8px 0 0">已锁定并复核：买入信号日 '+escapeHTML(p.signal_date)+'；ATR14='+fmt(atrState.atr,3)+'；止损=成本−1.5×固定ATR，止盈=成本+2×固定ATR。最新日线 '+escapeHTML(last.date)+' 的ATR14='+fmt(last.atr14,3)+'（仅供参考，不改变固定风险线）。手动成本价和回测模拟买入价不同时，价格仍不能逐元对照。</p>'
+     :'<p class="fine" style="margin:8px 0 0">'+(atrState.pinned?'已保存的信号ATR与当前历史日线无法一致复核；暂停ATR止盈止损预警。': '本持仓尚未锁定经核验的信号日ATR；暂停ATR止盈止损预警。')+
+      (atrState.candidate?' 历史日线显示 '+escapeHTML(atrState.candidate.signal_date)+' 存在符合本策略的买入信号，ATR14='+fmt(atrState.candidate.signal_atr,3)+'，需确认绑定。':' 无法从当前历史日线证明该买入日满足本策略信号及次日开盘条件，不能推定固定ATR。')+'</p>'+
+      (atrState.candidate?'<button class="btn small" style="margin-top:8px" data-bind-atr="'+i+'">核验并锁定信号日ATR</button>':'');
     if(liveQuote)detail+=' · 行情时间 '+escapeHTML(r.quote_time||'未知');
   }catch(e){detail='历史日线未就绪；不生成虚假的卖出信号。';}
   return '<div class="card" style="padding:12px;margin-bottom:9px"><div class="barline"><div><div class="stockname">'+name+' <span class="tag caution">模拟持仓</span></div><div class="stockcode">'+p.code+' · '+p.qty+'股 · 成本 '+fmt(p.cost)+'元/股'+(p.entry_date?' · 买入 '+escapeHTML(p.entry_date):' · 买入日期未记录')+'</div></div>'+signal+'</div>'+
@@ -371,7 +376,21 @@ async function renderPositions(){
   liveSellAlerts=alerts;
   renderLivePanel();
  }
-}function setTab(tab){activeTab=tab;$$('.details').forEach(x=>x.classList.toggle('active',x.id===tab));$$('[data-tab]').forEach(x=>x.classList.toggle('active',x.dataset.tab===tab));window.scrollTo({top:0,behavior:'instant'});}
+}
+async function bindPositionAtr(index){
+ const p=positions[index];if(!p)return;
+ try{
+  const data=await loadHistory(p.code),a=enrichJS(data.bars);
+  const candidate=verifiedPositionSignal(a,p.entry_date);
+  if(!candidate){toast('历史日线无法确认本笔策略买入信号，不生成固定ATR');renderPositions();return}
+  if(!confirm('确认锁定 '+p.code+' · 买入 '+p.entry_date+'\n信号日 '+candidate.signal_date+' · ATR14 '+fmt(candidate.signal_atr,3)+'\n绑定后按本机成本价固定止损和止盈，后续最新ATR不会修改风险线。'))return;
+  if(positions[index]!==p)return toast('持仓记录已变化，请重新核验');
+  positions[index]={...p,...candidate};
+  if(!saveLocal('positions',positions))return;
+  renderPositions();toast('已锁定并保存信号日ATR');
+ }catch(e){toast('核验失败，未修改持仓ATR');}
+}
+function setTab(tab){activeTab=tab;$$('.details').forEach(x=>x.classList.toggle('active',x.id===tab));$$('[data-tab]').forEach(x=>x.classList.toggle('active',x.dataset.tab===tab));window.scrollTo({top:0,behavior:'instant'});}
 function saveFile(filename,text){const a=document.createElement('a'),blob=new Blob([text],{type:'application/json;charset=utf-8'});a.href=URL.createObjectURL(blob);a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000)}
 async function fetchJSON(path){const r=await fetch(path+(path.includes('?')?'&':'?')+'t='+Date.now(),{cache:'no-store'});if(!r.ok)throw Error(`${r.status} ${path}`);return r.json()}
 async function loadStockMaster(){
@@ -441,6 +460,25 @@ function entrySignalJS(a){
  return {buy:failed.length===0,label:failed.length===0?'次日买入观察':'暂不买入',failed,
   close:p.close,volumeRatio:p.volRatio,buyLow:p.close-.25*atr,buyHigh:p.close+.25*atr,
   stop:p.close-1.5*atr,target:p.close+2*atr,validSessions:1};
+}
+// Never infer a strategy signal solely from a manually recorded entry date.
+function verifiedPositionSignal(a,entryDate){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(String(entryDate||'')))return null;
+ const en=a.findIndex(b=>b.date===entryDate);
+ if(en<65)return null;
+ const signal=a[en-1],entry=a[en],setup=entrySignalJS(a.slice(0,en));
+ const atr=Number(signal?.atr14),open=Number(entry?.open);
+ if(!setup.buy||!Number.isFinite(atr)||atr<=0||!Number.isFinite(open)||open<setup.buyLow||open>setup.buyHigh)return null;
+ return {signal_date:signal.date,signal_atr:atr,signal_source:'verified_eod_v19'};
+}
+function positionAtrBasis(p,a){
+ const candidate=verifiedPositionSignal(a,p.entry_date);
+ const atr=p.signal_atr;
+ const pinned=typeof atr==='number'&&Number.isFinite(atr)&&atr>0&&
+  p.signal_source==='verified_eod_v19'&&/^\d{4}-\d{2}-\d{2}$/.test(String(p.signal_date||''))&&p.signal_date<p.entry_date;
+ const valid=!!(pinned&&candidate&&p.signal_date===candidate.signal_date&&
+   Math.abs(atr-candidate.signal_atr)<=Math.max(1e-9,candidate.signal_atr*1e-8));
+ return {candidate,valid,atr:valid?atr:null,pinned};
 }
 function graph(a){const xs=a.slice(-90),w=350,h=185,l=12,r=12,top=12,bottom=16,min=Math.min(...xs.map(x=>x.low))*.995,max=Math.max(...xs.map(x=>x.high))*1.005;const X=i=>l+(w-l-r)*i/Math.max(1,xs.length-1),Y=p=>h-bottom-(p-min)/(max-min||1)*(h-bottom-top);const line=k=>xs.map((x,i)=>(Number.isFinite(x[k])?`${i?'L':'M'}${X(i).toFixed(1)},${Y(x[k]).toFixed(1)}`:'' )).join(' ');return `<div class="linechart"><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="历史价格走势图"><g stroke="#e9e4dc" stroke-width="1">${[0,1,2,3].map(i=>`<line x1="${l}" x2="${w-r}" y1="${25+i*43}" y2="${25+i*43}"/>`).join('')}</g><path d="${line('close')}" fill="none" stroke="#b77049" stroke-width="2.4"/><path d="${line('ma5')}" fill="none" stroke="#388875" stroke-width="1.6"/><path d="${line('ma10')}" fill="none" stroke="#a6a6a0" stroke-width="1.4" stroke-dasharray="5 4"/></svg><div class="barline fine"><span>${xs[0].date}</span><span>${xs.at(-1).date}</span></div><div class="fine" style="margin-top:7px">🟠 收盘价　<span style="color:var(--jade)">━━</span> MA5　┄ MA10（不复权）</div></div>`}
 async function analyze(input){
@@ -527,7 +565,7 @@ async function runBacktest(){
 $$('[data-tab]').forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.tab)));
 $$('[data-filter]').forEach(b=>b.addEventListener('click',()=>{filter=b.dataset.filter;$$('[data-filter]').forEach(x=>x.classList.toggle('active',x===b));renderScreen()}));
 $('stockSearch').addEventListener('input',renderScreen);
-document.addEventListener('click',event=>{const d=event.target.closest('[data-detail]');if(d)analyze(d.dataset.detail);const add=event.target.closest('[data-add-watch]');if(add)addWatch(add.dataset.addWatch);const retry=event.target.closest('[data-retry-history]');if(retry){delete historyCache[retry.dataset.retryHistory];analyze(retry.dataset.retryHistory)}const w=event.target.closest('[data-remove-watch]');if(w){watch=watch.filter(c=>c!==w.dataset.removeWatch);saveLocal('watch',watch);renderWatch()}const p=event.target.closest('[data-remove-pos]');if(p){positions.splice(Number(p.dataset.removePos),1);saveLocal('positions',positions);renderPositions()}});
+document.addEventListener('click',event=>{const d=event.target.closest('[data-detail]');if(d)analyze(d.dataset.detail);const add=event.target.closest('[data-add-watch]');if(add)addWatch(add.dataset.addWatch);const retry=event.target.closest('[data-retry-history]');if(retry){delete historyCache[retry.dataset.retryHistory];analyze(retry.dataset.retryHistory)}const w=event.target.closest('[data-remove-watch]');if(w){watch=watch.filter(c=>c!==w.dataset.removeWatch);saveLocal('watch',watch);renderWatch()}const bind=event.target.closest('[data-bind-atr]');if(bind){bindPositionAtr(Number(bind.dataset.bindAtr));return}const p=event.target.closest('[data-remove-pos]');if(p){positions.splice(Number(p.dataset.removePos),1);saveLocal('positions',positions);renderPositions()}});
 function resolveStockInput(value){
  const raw=String(value||'').trim();
  if(validCode(raw))return raw;
