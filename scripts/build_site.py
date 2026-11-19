@@ -1,6 +1,7 @@
 """Copy only public site assets and market data; never deploy local private positions."""
 from pathlib import Path
 import shutil
+import subprocess
 from core import BASE
 
 def main():
@@ -11,6 +12,7 @@ def main():
         shutil.copy2(BASE/file,site/file)
     (site/'assets').mkdir()
     shutil.copy2(BASE/'assets'/'icon.svg',site/'assets'/'icon.svg')
+    shutil.copy2(BASE/'assets'/'backtest-v2.js',site/'assets'/'backtest-v2.js')
     data=site/'data';data.mkdir()
     for file in ['quotes.json','screen.json','stocks.json','baostock_status.json','signal_tracker.json']:
         source = BASE/'data'/file
@@ -19,6 +21,10 @@ def main():
     src=BASE/'data'/'history';dest=data/'history';dest.mkdir()
     for file in src.glob('*.json'):
         shutil.copy2(file,dest/file.name)
+    # Build a frozen, auditable comparison from committed source histories.
+    # No API calls, no changes to data/ or quote-feed, and no trading signals published.
+    subprocess.run(['node', str(BASE/'scripts'/'build_v2_study.js'), str(data/'backtest_v2.json')],
+                   cwd=BASE, check=True, timeout=140)
     (site/'.nojekyll').touch()
     print('Public site files:',len(list(site.rglob('*'))))
 
