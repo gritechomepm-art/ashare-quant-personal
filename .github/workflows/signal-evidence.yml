@@ -17,6 +17,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
+      - name: Fail closed until append-only branch protection is active
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/require_ledger_ruleset.py
       - name: Capture committed EOD source and sealing code before branch switch
         shell: bash
         run: |
