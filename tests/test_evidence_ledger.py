@@ -103,3 +103,24 @@ def test_immutable_strategy_engine_source_blobs():
         found=subprocess.run(["git","hash-object",name],cwd=ROOT,
                              text=True,capture_output=True,check=True).stdout.strip()
         assert found==blob,name+" changed while strategy code was frozen"
+
+
+def test_ruleset_gate_requires_no_force_no_delete_without_bypass():
+    from require_ledger_ruleset import require_rulesets
+    def fetch(suffix):
+        if not suffix:
+            return [{"id":17,"enforcement":"active","target":"branch"}]
+        return {"enforcement":"active","target":"branch",
+                "conditions":{"ref_name":{"include":["refs/heads/signal-evidence-ledger"],"exclude":[]}},
+                "rules":[{"type":"non_fast_forward"},{"type":"deletion"}],
+                "bypass_actors":[]}
+    assert require_rulesets(fetch) is True
+    with pytest.raises(RuntimeError,match="missing"):
+        require_rulesets(lambda suf: [])
+    def bypass(suffix):
+        d=fetch(suffix)
+        if suffix:
+            d["bypass_actors"]=[{"actor_id":1,"actor_type":"OrganizationAdmin","bypass_mode":"always"}]
+        return d
+    with pytest.raises(ValueError,match="bypass"):
+        require_rulesets(bypass)
