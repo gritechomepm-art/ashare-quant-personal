@@ -35,7 +35,7 @@
 </header>
 <main>
   <div class="notice"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 10v6m0-9h.01"/></svg><span>这是已上线的<b>手机首页</b>。<span id="mobileStatus">正在读取最近一次正式发布的收盘研究数据…</span> 行情不是逐笔实时数据，不支持自动下单。自选股、模拟持仓及完整回测请进入「完整功能」。</span></div>
-  <div class="hero"><div class="eyebrow" id="screenDateLine">POST-CLOSE RESEARCH · 数据读取中</div><h1>先看信号，<br>再看证据。</h1><p>把每日筛选和历史验证分开。任何研究结果都不自动修改原策略，也不将评分冒充买入信号。</p><div class="hero-markers"><span>原策略不变</span><span>不允许启用候选规则</span><span>不连接券商</span></div></div>
+  <div class="hero"><div class="eyebrow" id="screenDateLine">POST-CLOSE RESEARCH · 数据读取中</div><h1>先看信号，<br>再看证据。</h1><p>每日选股仅筛沪深主板（含原中小板002）。把每日筛选和历史验证分开。任何研究结果都不自动修改原策略，也不将评分冒充买入信号。</p><div class="hero-markers"><span>仅沪深主板</span><span>原策略不变</span><span>不允许启用候选规则</span><span>不连接券商</span></div></div>
   <div class="section-title"><h2>上次收盘概况</h2><small id="lastScreenDate">等待更新</small></div>
   <div class="cards">
     <article class="stat"><div class="label">正式收盘观察信号</div><div class="value"><span id="signalCount">—</span> <small>只</small></div><div class="sub">只满足全部 5 项条件的股票</div></article>
@@ -56,6 +56,7 @@
   </section>
   <section class="panel" id="evidence" role="tabpanel" aria-labelledby="tab-evidence" hidden>
     <div class="section-title"><h2>证据，而不是调参</h2><small>历史探索</small></div>
+    <p class="note"><strong>历史证据口径：</strong>旧版回测和随机对照包含其他板块，继续原样保留，不因主板筛选变更而重算，也不能称为“主板专属验证”。</p>
     <div class="evidence-hero"><small>3 DAY STRATEGY · MATCHED CONTROL</small><div class="big">负向历史证据</div><p>在已查看过的历史验证区，同一只股票、同一月份的非信号日对照，比原买入信号表现更好。未取得独立前瞻验证。</p></div>
     <div class="box"><div class="bar-heading"><b>历史验证区 · 同股随机对照</b><span class="pill subtle" id="controlPairs">载入中</span></div><div class="compare-grid"><div class="compare"><div class="name">原 3 日信号平均净收益</div><div class="val negative" id="signalAvg">—</div><div class="mini">含同口径交易费用</div></div><div class="compare"><div class="name">随机非信号日平均净收益</div><div class="val negative" id="controlAvg">—</div><div class="mini">同股同月匹配</div></div></div><div class="diff"><strong id="controlDifference">— pp</strong><span>信号减对照。差值为负，不意味着可以据此推断真实市场中的确定收益差异。</span></div><div class="band"><b id="controlClusterLabel">按股票聚类的 95% 重抽样区间</b><span id="controlClusterBounds">等待真实研究文件</span></div><p class="note">这份历史对照<strong>不构成独立前瞻验证</strong>。各股票共同受市场日期冲击，区间未完全调整跨股票同步相关性。</p></div>
     <div class="box"><div class="bar-heading"><b>信号锁档进度</b><span class="pill" id="ledgerStatus">核验中</span></div><div class="timeline"><div class="step"><h3>已完成 · 证据链程序</h3><p>每个交易日单独记录日期、生成时间、来源 SHA、内容指纹及前一份哈希。</p></div><div class="step"><h3>已完成 · GitHub 分支保护</h3><p>Signal Evidence Protection 已验证为 Active，禁止删除及强制推送，绕过列表为空。</p></div><div class="step"><h3>未完成 · 首份真实收盘封存</h3><p id="ledgerDescription">2026-11-23 交易日为最早合格日期；首次写入以 GitHub 上实际可核验的记录为准，旧日期不能补写。</p></div></div><div class="band"><b>正式前瞻验收：<span id="verifiedProgress">等待独立验收 / 100</span></b><span id="sealedDates">仅有封存记录不等于完成可成交性及后续收益验证；最低要求 30 只不同股票。</span></div></div>
@@ -107,6 +108,7 @@
   $('#searchStock').addEventListener('input',render);
   $('#copyLink').addEventListener('click',async()=>{const url=new URL('./app.html',window.location.href).href;let ok=false;try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(url);ok=true;}}catch(e){}if(!ok){const el=document.createElement('textarea');el.value=url;document.body.appendChild(el);el.select();try{ok=document.execCommand('copy');}catch(e){}el.remove();}const t=$('#toast');t.textContent=ok?'正式网址已复制':'复制受限：请使用网页右上角「完整功能」';t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2300);});
 
+  function isMainBoard(code){return /^(?:600|601|603|605|000|001|002|003)\d{3}$/.test(String(code||''));}
   function plainNum(v, digits=0){return Number.isFinite(Number(v)) ? Number(v).toLocaleString('zh-CN',{minimumFractionDigits:digits,maximumFractionDigits:digits}) : '—';}
   function percent(v){return Number.isFinite(Number(v))?(Number(v)>0?'+':'')+Number(v).toFixed(2)+'%':'—';}
   function setText(id,value){const node=document.getElementById(id);if(node)node.textContent=String(value);}
@@ -114,21 +116,25 @@
   async function loadLatestResearch(){
     const screenTask=getJSON('./data/screen.json').then(data=>{
       if(data.schema!==1||!/^\d{4}-\d{2}-\d{2}$/.test(data.asof)||!Array.isArray(data.rows))throw Error('盘后数据不完整');
-      const count=Number(data.buy_watch_count??data.total_signals??data.rows.filter(s=>s.entry_signal===true).length);
-      const covered=Number(data.covered_count)||0,eligible=Number(data.eligible_count)||0, pct=eligible?100*covered/eligible:0;
+      const mainRows=data.rows.filter(row=>isMainBoard(row.code));
+      const count=mainRows.filter(row=>row.entry_signal===true).length;
+      const boardReady=data.board_scope==='SH_SZ_MAIN';
+      const covered=boardReady?Number(data.covered_count):NaN;
+      const eligible=boardReady?Number(data.eligible_count):NaN;
+      const pct=boardReady&&eligible>0?100*covered/eligible:0;
       setText('screenDateLine','POST-CLOSE RESEARCH · '+data.asof.replaceAll('-','.'));
       setText('lastScreenDate','数据截至 '+data.asof);
       setText('signalCount',plainNum(count));
-      setText('coveredCount',plainNum(covered));
-      setText('eligibleCount','/ '+plainNum(eligible));
-      setText('coverageText',(covered<eligible?'覆盖不完整 · ':'筛选覆盖 · ')+plainNum(pct,1)+'%');
+      setText('coveredCount',boardReady?plainNum(covered):'—');
+      setText('eligibleCount',boardReady?'/ '+plainNum(eligible):'/ 待主板重算');
+      setText('coverageText',boardReady?((covered<eligible?'主板覆盖不完整 · ':'主板筛选覆盖 · ')+plainNum(pct,1)+'%'):'旧全市场快照 · 主板覆盖率待下一次盘后重算');
       document.getElementById('coverageProgress').style.width=Math.max(0,Math.min(100,pct))+'%';
-      setText('mobileStatus','上次盘后数据 '+data.asof+'（生成于 '+(data.generated_at||'未知')+'），不是实时股价。');
-      stocks=data.rows.slice(0,100).map(row=>({
+      setText('mobileStatus','上次盘后数据 '+data.asof+'（生成于 '+(data.generated_at||'未知')+'）。'+(boardReady?'仅沪深主板。':'旧快照已在页面过滤掉创业板、科创板及北交所，主板覆盖率尚未重算。')+' 非实时股价。');
+      stocks=mainRows.slice(0,100).map(row=>({
         code:String(row.code||''),name:String(row.name||row.code||''),
         score:Number(row.score)||0,price:Number(row.close)||0,signal:row.entry_signal===true,
         volume:Number(row.volume_ratio),buyLow:Number(row.buy_low),buyHigh:Number(row.buy_high)
-      })).filter(s=>/^\d{6}$/.test(s.code));
+      })).filter(s=>isMainBoard(s.code));
       render();
     }).catch(e=>{
       setText('mobileStatus','盘后数据暂无法读取（'+String(e.message||'网络不可用')+'）。不会展示过期快照作为今日结果；请稍后刷新或使用完整功能。');
