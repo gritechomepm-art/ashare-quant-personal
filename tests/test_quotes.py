@@ -109,6 +109,8 @@ def test_frontend_does_not_redownload_large_eod_tracker_every_minute():
     root = Path(__file__).resolve().parents[1]
     html = (root / "index.html").read_text(encoding="utf-8")
     assert "EOD_REFRESH_MS=10*60*1000" in html
-    assert "needEodFetch?fetchJSON('./data/signal_tracker.json'):Promise.resolve(null)" in html
+    assert "needEodFetch?loadTrackerIndex():Promise.resolve(null)" in html
+    assert "tracker/index.json" in html and "tracker/recent30.json" in html
+    assert "needEodFetch?fetchJSON('./data/signal_tracker.json')" not in html
     assert "' · 日线筛选 '+(screen.asof||'未更新')" in html
     assert "'历史行情（非实时；禁用盘中预警）'" in html
