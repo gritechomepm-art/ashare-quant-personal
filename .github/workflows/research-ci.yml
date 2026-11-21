@@ -21,6 +21,27 @@ jobs:
           node --check assets/backtest-v2.js
           node --check scripts/build_matched_control.js
           node --check scripts/build_v2_study.js
+      - name: Full read-only production-build rehearsal
+        run: |
+          before=$(sha256sum data/signal_tracker.json | cut -d' ' -f1)
+          python scripts/build_site.py
+          after=$(sha256sum data/signal_tracker.json | cut -d' ' -f1)
+          test "$before" = "$after" || { echo "EOD source cache changed"; exit 1; }
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          site=Path('site/data')
+          assert not (site/'signal_tracker.json').exists(), 'large tracker accidentally republished'
+          for name in ['tracker/index.json','tracker/recent30.json','backtest_v2.json','entry_quality_v22.json','evidence_control.json']:
+              assert (site/name).is_file(), name
+          old=json.loads((site/'backtest_v2.json').read_text())
+          assert old['comparison']['auto_promotion'] is False
+          assert old['comparison']['live_default_hold']==3
+          new=json.loads((site/'evidence_control.json').read_text())
+          assert new['auto_activate'] is False and new['rules_frozen'] is True
+          assert new['fixed_historical_cutoff']=='2026-07-21'
+          print('Full build rehearsal passed; cached raw tracker unchanged')
+          PY
       - name: Compile Python modules
         run: python -m compileall -q scripts quant_v1.py
       - name: Validate browser JavaScript syntax
