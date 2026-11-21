@@ -8,13 +8,9 @@ import baostock as bs
 
 from core import ROOT, atomic_json, load_json, now_cst, score_history, normalize_stock_master, append_bar_from_quote, is_final_quote_for_day
 from probe_baostock import checked_frame
+from mainboard_scope import is_mainboard_symbol
 
 FIELDS = "date,code,open,high,low,close,volume,amount,tradestatus,isST"
-
-
-def is_share(code):
-    return len(code) == 9 and code[2] == "." and code[3:].isdigit() and code.startswith(
-        ("sh.6", "sz.0", "sz.3", "bj.4", "bj.8", "bj.9"))
 
 
 def normalize_history(frame, code, name, day):
@@ -71,7 +67,7 @@ def collect(root=ROOT, max_new=300, max_seconds=1000, quotes_file=None):
         master = normalize_stock_master(universe, asof)
         atomic_json(root / "stocks.json", master)
         names = {str(r.code): str(r.code_name) for r in universe.itertuples(index=False)
-                 if is_share(str(r.code))}
+                 if is_mainboard_symbol(str(r.code))}
         if len(names) < 1200:
             raise ValueError(f"Invalid partial universe: {len(names)}")
         active = [(full, name) for full, name in names.items()
@@ -153,9 +149,10 @@ def collect(root=ROOT, max_new=300, max_seconds=1000, quotes_file=None):
     screen = {"schema": 1, "status": "complete" if ready == total else "partial",
               "source": "BaoStock 0.9.4 unadjusted EOD + quant_v1 research signals",
               "asof": asof, "generated_at": now_cst().isoformat(timespec="seconds"),
-              "universe_count": len(names), "eligible_count": total,
+              "universe_count": len(names), "all_a_universe_count": master["count"],
+              "board_scope": "SH_SZ_MAIN", "board_label": "沪深主板（含原中小板002）", "eligible_count": total,
               "covered_count": ready, "coverage_pct": round(100*ready/total, 2),
-              "filter_note": "覆盖率分母为当前非ST非退市A股候选池；只有下载日K后才可检查成交额>=3000万元；非历史可交易成分回测",
+              "filter_note": "仅沪深主板600/601/603/605及000/001/002/003；覆盖率分母为当前主板非ST非退市候选池；日K后检查成交额>=3000万元；非历史可交易成分回测",
               "total_signals": sum(bool(row.get("entry_signal")) for row in ranked),
               "buy_watch_count": sum(bool(row.get("entry_signal")) for row in ranked),
               "legacy_v1_signal_count": sum(bool(row["signal"]) for row in ranked),
@@ -165,6 +162,7 @@ def collect(root=ROOT, max_new=300, max_seconds=1000, quotes_file=None):
     atomic_json(root/"baostock_status.json", {
         "status": screen["status"], "asof": asof, "universe_count": len(names),
         "candidate_count": total, "covered_count": ready,
+        "board_scope": "SH_SZ_MAIN", "all_a_universe_count": master["count"],
         "new_histories": successes, "failed_count": len(failures),
         "failed_samples": failures[:12], "generated_at": screen["generated_at"]})
     print(f"BaoStock {asof}: universe={len(names)}, covered={ready}/{total}, new={successes}, errors={len(failures)}, signals={screen['total_signals']}")
