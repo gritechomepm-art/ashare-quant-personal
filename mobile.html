@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f8f5ef">
+  <meta name="description" content="A股量化 V2.2 手机研究页：盘后信号、历史证据、信号封存状态。仅供研究，不提供自动交易。">
+  <title>A股量化 V2.2 · 手机首页</title>
+  <style>
+    :root{color-scheme:light;--bg:#f8f5ef;--surface:#fffdfa;--surface-2:#f3ede4;--ink:#302d29;--ink2:#514b44;--muted:#857e75;--line:#e9e1d6;--accent:#aa654b;--accent2:#844b3d;--accent-tint:#f6e9df;--danger:#ad4a42;--cream:#edd8b9;--shadow:0 8px 35px rgba(69,50,31,.055);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+    *{box-sizing:border-box}html{background:var(--bg);scroll-behavior:smooth}body{margin:0;color:var(--ink);-webkit-font-smoothing:antialiased;font-size:14px}button,input,a{font:inherit}button{cursor:pointer}a{text-decoration:none;color:inherit}button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid #dba886;outline-offset:2px}button:disabled{cursor:not-allowed;opacity:.5}
+    .app{min-height:100vh;background:var(--bg);max-width:650px;margin:auto;position:relative;padding-bottom:124px}
+    .top{display:flex;justify-content:space-between;align-items:center;padding:19px 19px 12px;gap:8px}.brand{display:flex;align-items:center;gap:10px}.logo{height:43px;width:43px;border-radius:15px;background:linear-gradient(140deg,#c28b68,#a66048);display:grid;place-items:center;color:white;font-size:22px;font-weight:800;box-shadow:0 5px 15px #b67f582b}.brand b{display:block;font-size:16px;letter-spacing:.1px}.brand small{color:var(--muted);font-size:10px;letter-spacing:1.35px;font-weight:700}.top-link{border:1px solid #d8c4b5;border-radius:25px;padding:9px 11px;color:#8c5745;background:#fff9f2;font-size:11px;font-weight:700;white-space:nowrap}.top-link svg{vertical-align:-3px;margin-left:3px}
+    main{padding:0 19px}.notice{display:flex;align-items:flex-start;gap:8px;background:#efe7db;border-radius:12px;color:#6e6256;font-size:11px;line-height:1.65;padding:10px 12px;margin-bottom:17px}.notice svg{flex:none;margin-top:2px}
+    .hero{background:linear-gradient(120deg,#e8d1b6 0%,#f2e1cd 50%,#f6e7d5 100%);padding:23px 21px 21px;border-radius:22px;overflow:hidden;position:relative;border:1px solid #e8d6bf}.hero:before{content:"";position:absolute;width:225px;height:225px;right:-86px;top:-132px;border:38px solid #ffffff4f;border-radius:50%}.hero:after{content:"";position:absolute;width:115px;height:115px;right:-42px;bottom:-62px;border:18px solid #be86591e;border-radius:50%}.hero>*{position:relative;z-index:1}.eyebrow{text-transform:uppercase;font-size:10px;color:#8d5c49;letter-spacing:1.5px;font-weight:800}.hero h1{font-size:28px;letter-spacing:-.8px;line-height:1.3;margin:12px 0 8px;max-width:340px}.hero p{color:#756350;font-size:12px;line-height:1.75;margin:0;max-width:355px}.hero-markers{display:flex;gap:7px;margin-top:17px;flex-wrap:wrap}.hero-markers span{background:#ffffffa5;border:1px solid #ffffffbd;color:#7f5d45;padding:6px 9px;font-size:10px;border-radius:99px;font-weight:700}
+    .section-title{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:21px 0 11px}.section-title h2{font-size:16px;letter-spacing:-.2px;margin:0;font-weight:780}.section-title small{color:var(--muted);font-size:11px}.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.stat{background:var(--surface);border:1px solid var(--line);border-radius:17px;padding:16px 15px;box-shadow:var(--shadow);min-width:0}.stat .label{color:var(--muted);font-size:11px}.stat .value{margin-top:9px;display:flex;align-items:baseline;gap:5px;font-size:28px;letter-spacing:-1px;font-weight:790;line-height:1.1}.stat .value small{font-size:12px;font-weight:500;letter-spacing:0}.stat .sub{margin-top:9px;font-size:10px;color:var(--muted);line-height:1.55}.stat .sub.warn{color:#995541}.progress{height:5px;margin-top:13px;background:#efe8df;border-radius:7px;overflow:hidden}.progress b{height:100%;width:11.3%;background:#bc8862;display:block;border-radius:7px}
+    .switcher{display:flex;gap:5px;background:#ede8e0;padding:5px;border-radius:15px;margin:22px 0 16px;position:sticky;top:8px;z-index:15;box-shadow:0 2px 9px rgba(82,57,28,.035)}.switcher button{flex:1;padding:10px 5px;border:0;border-radius:11px;color:#7a736b;background:transparent;font-size:12px;font-weight:700}.switcher button[aria-selected="true"]{background:var(--surface);color:#985641;box-shadow:0 3px 11px rgba(63,39,18,.075)}
+    .panel[hidden]{display:none}.box{background:var(--surface);border:1px solid var(--line);border-radius:17px;box-shadow:var(--shadow);padding:16px;margin-bottom:12px}.bar-heading{display:flex;align-items:center;justify-content:space-between;gap:7px}.bar-heading b{font-size:14px}.pill{border:1px solid #e7d2bf;border-radius:99px;color:#9a654a;background:#fff7ed;font-weight:700;font-size:10px;padding:5px 8px;white-space:nowrap}.pill.subtle{background:#f0eee9;border-color:#e9e5dc;color:#78726a}.pill.dark{background:#f6e7df;border-color:#efd1c2;color:#a04d3e}.note{font-size:11px;line-height:1.78;color:var(--muted);margin:9px 0 0}.note strong{color:#5f5145}
+    .signal-card{background:var(--surface);border:1px solid var(--line);border-radius:17px;padding:15px;margin-bottom:10px;box-shadow:var(--shadow)}.signal-card.featured{border-color:#e1bda6;background:linear-gradient(150deg,#fffefb,#fdf3eb)}.stockline{display:flex;justify-content:space-between;align-items:center;gap:7px}.stockname{font-size:15px;font-weight:800}.code{font-size:11px;color:var(--muted);margin-left:6px;font-variant-numeric:tabular-nums}.score{font-size:11px;color:#965e47;font-weight:750}.stockbottom{display:flex;gap:12px;margin-top:12px;padding-top:10px;border-top:1px solid #ece6df}.stockbottom .part{flex:1;min-width:0}.stockbottom small{display:block;font-size:10px;color:var(--muted)}.stockbottom b{display:block;font-size:14px;margin-top:5px;font-variant-numeric:tabular-nums}.stockbottom b.accent{color:#a35b47}.footerline{display:flex;justify-content:space-between;align-items:center;margin-top:11px;gap:10px}.footerline .mini{font-size:10px;color:var(--muted)}
+    .search{position:relative;margin-bottom:11px}.search input{height:43px;width:100%;border:1px solid var(--line);background:#fffdfa;border-radius:12px;padding:0 13px 0 36px;outline:none;color:var(--ink);font-size:13px}.search svg{position:absolute;top:12px;left:13px;color:#a69b8f}.filters{display:flex;gap:7px;margin:12px 0}.filters button{font-size:11px;border-radius:25px;background:#f7f2ea;border:1px solid #e7dfd4;color:#7b7068;padding:8px 12px}.filters button.active{border-color:#b87555;color:#985b40;background:#f7eae0;font-weight:800}.countline{font-size:11px;color:var(--muted);margin-left:auto}.empty{color:#8f857b;text-align:center;padding:25px 10px;font-size:12px}
+    .evidence-hero{border-radius:17px;background:#383631;color:#fffdf8;padding:18px 17px;margin-bottom:13px;position:relative;overflow:hidden}.evidence-hero:after{content:"";position:absolute;right:-55px;top:-55px;width:185px;height:185px;border:1px solid #ffffff25;border-radius:50%;box-shadow:0 0 0 28px #ffffff09,0 0 0 56px #ffffff05}.evidence-hero small{font-size:11px;color:#e4ba9d;letter-spacing:.8px;font-weight:750}.evidence-hero .big{font-size:27px;font-weight:780;line-height:1.15;margin:11px 0 3px;letter-spacing:-.7px}.evidence-hero p{font-size:11px;line-height:1.7;color:#d5d0c7;margin:5px 0 0;max-width:315px}.evidence-hero>*{position:relative;z-index:1}
+    .compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:15px}.compare{border-radius:13px;background:#f5efe8;padding:12px 10px}.compare .name{font-size:10px;color:#756b60}.compare .val{font-size:19px;letter-spacing:-.5px;font-weight:780;margin-top:7px}.compare .val.negative{color:var(--danger)}.compare .mini{font-size:10px;color:var(--muted);margin-top:3px}.diff{display:flex;gap:9px;align-items:flex-start;border-top:1px solid #ebe1d7;margin-top:13px;padding-top:13px}.diff strong{color:var(--danger);font-size:20px;letter-spacing:-.6px;white-space:nowrap}.diff span{color:#7c736a;font-size:11px;line-height:1.65}.band{background:#eae3da;padding:11px;border-radius:11px;margin-top:11px}.band b{font-size:12px;font-weight:750;color:#62554b}.band span{display:block;color:#8a7564;font-size:10px;margin-top:4px}.timeline{position:relative;padding-left:23px;margin:15px 0 3px}.timeline:before{content:"";position:absolute;left:6px;top:9px;bottom:15px;width:1px;background:#e0d1c2}.step{position:relative;margin-bottom:19px}.step:before{content:"";position:absolute;top:4px;left:-21px;width:9px;height:9px;border-radius:50%;background:#c78a60;border:3px solid #f3e5d7;box-sizing:content-box}.step h3{font-size:12px;margin:0 0 5px}.step p{margin:0;font-size:11px;line-height:1.7;color:var(--muted)}
+    .term{display:flex;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);font-size:12px}.term:last-child{border:none}.term .right{font-size:12px;font-weight:780;text-align:right}.term .right.negative{color:var(--danger)}.faded{font-size:10px;color:var(--muted);line-height:1.65}.numbered{counter-reset:steps}.instruction{display:flex;gap:10px;padding:14px 0;border-bottom:1px solid var(--line)}.instruction:last-child{border:0}.instruction .no{flex:none;width:25px;height:25px;border-radius:10px;display:grid;place-items:center;background:#f4e6d9;color:#965f48;font-size:12px;font-weight:800}.instruction b{font-size:12px;display:block}.instruction p{font-size:11px;line-height:1.65;color:var(--muted);margin:5px 0 0}.linkbtn{display:flex;gap:8px;align-items:center;justify-content:center;text-decoration:none;border-radius:14px;padding:14px 15px;background:#aa654b;color:white;font-size:13px;font-weight:760;box-shadow:0 8px 19px #aa654b23}.secondarybtn{display:flex;justify-content:center;gap:8px;border:1px solid #ddc6b6;background:#fff9f3;padding:12px 14px;border-radius:13px;color:#925d49;font-weight:700;font-size:12px;width:100%;margin-top:10px}.fineprint{font-size:10px;color:#978d83;line-height:1.7;text-align:center;margin-top:15px}
+    .bottom{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(100%,650px);background:#fffdfaf2;border-top:1px solid #e9e1d8;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);display:grid;grid-template-columns:repeat(4,1fr);padding:10px 12px calc(env(safe-area-inset-bottom,0px) + 12px);z-index:30;box-shadow:0 -8px 18px rgba(67,52,34,.025)}.bottom button,.bottom a{border:0;background:transparent;color:#9b938b;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:4px}.bottom button.active{color:#a85b43}.bottom svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+    .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);z-index:40;background:#38342f;color:#fff;padding:11px 16px;border-radius:12px;font-size:11px;max-width:calc(100% - 34px);width:max-content;opacity:0;pointer-events:none;transition:opacity .18s}.toast.show{opacity:1}
+    @media(min-width:680px){body{padding:25px 0}.app{border-radius:27px;min-height:830px;box-shadow:0 25px 80px #6650391c;overflow:hidden}.bottom{position:sticky;transform:none;left:auto;width:100%;bottom:0;margin-top:20px}.app{padding-bottom:0}.hero h1{font-size:31px}}@media(max-width:350px){.top{padding:16px 14px 10px}main{padding:0 14px}.hero{padding:20px 16px}.hero h1{font-size:24px}.stat{padding:14px 11px}.stat .value{font-size:26px}}
+    @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+  </style>
+</head>
+<body>
+<div class="app">
+<header class="top">
+  <div class="brand"><div class="logo" aria-hidden="true">量</div><div><b>A 股量化研究台</b><small>V2.2 · EVIDENCE EDITION</small></div></div>
+  <a class="top-link" href="./app.html">完整功能 <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17 17 7M8 7h9v9"/></svg></a>
+</header>
+<main>
+  <div class="notice"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 10v6m0-9h.01"/></svg><span>这是已上线的<b>手机首页</b>。<span id="mobileStatus">正在读取最近一次正式发布的收盘研究数据…</span> 行情不是逐笔实时数据，不支持自动下单。自选股、模拟持仓及完整回测请进入「完整功能」。</span></div>
+  <div class="hero"><div class="eyebrow" id="screenDateLine">POST-CLOSE RESEARCH · 数据读取中</div><h1>先看信号，<br>再看证据。</h1><p>把每日筛选和历史验证分开。任何研究结果都不自动修改原策略，也不将评分冒充买入信号。</p><div class="hero-markers"><span>原策略不变</span><span>不允许启用候选规则</span><span>不连接券商</span></div></div>
+  <div class="section-title"><h2>上次收盘概况</h2><small id="lastScreenDate">等待更新</small></div>
+  <div class="cards">
+    <article class="stat"><div class="label">正式收盘观察信号</div><div class="value"><span id="signalCount">—</span> <small>只</small></div><div class="sub">只满足全部 5 项条件的股票</div></article>
+    <article class="stat"><div class="label">已覆盖候选股票</div><div class="value"><span id="coveredCount">—</span> <small id="eligibleCount">/ —</small></div><div class="progress"><b id="coverageProgress" style="width:0%"></b></div><div class="sub warn" id="coverageText">数据获取中</div></article>
+  </div>
+  <div class="switcher" role="tablist" aria-label="手机研究页分区">
+    <button type="button" id="tab-daily" role="tab" aria-controls="daily" aria-selected="true" data-tab="daily">盘后观察</button>
+    <button type="button" id="tab-evidence" role="tab" aria-controls="evidence" aria-selected="false" data-tab="evidence">历史证据</button>
+    <button type="button" id="tab-guide" role="tab" aria-controls="guide" aria-selected="false" data-tab="guide">使用说明</button>
+  </div>
+  <section class="panel" id="daily" role="tabpanel" aria-labelledby="tab-daily">
+    <div class="section-title"><h2>每日候选清单</h2><small>记录非实时</small></div>
+    <div class="box"><div class="bar-heading"><b>同一批盘后筛选</b><span class="pill subtle">仅研究</span></div><p class="note"><strong>评分仅排序用，不表示入选。</strong>只有标记为「收盘确认」的股票才满足原始 5 项买入条件；即使评分达到 100，也可能不符合入选条件。</p></div>
+    <div class="search"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg><input id="searchStock" type="search" autocomplete="off" aria-label="搜索股票代码或名称" placeholder="搜索代码或股票名称"></div>
+    <div class="filters"><button type="button" class="active" data-filter="all">候选股评分</button><button type="button" data-filter="signal">收盘确认信号</button><span class="countline" id="listCount">载入中</span></div>
+    <div id="stockList" aria-live="polite"></div>
+    <p class="fineprint" style="text-align:left">本页显示最新已发布日线筛选中的前 100 只评分候选。完整筛选、调整价格区间和手动添加自选请进入「完整功能」。历史收盘价不可作为下一交易日可成交价格。</p>
+  </section>
+  <section class="panel" id="evidence" role="tabpanel" aria-labelledby="tab-evidence" hidden>
+    <div class="section-title"><h2>证据，而不是调参</h2><small>历史探索</small></div>
+    <div class="evidence-hero"><small>3 DAY STRATEGY · MATCHED CONTROL</small><div class="big">负向历史证据</div><p>在已查看过的历史验证区，同一只股票、同一月份的非信号日对照，比原买入信号表现更好。未取得独立前瞻验证。</p></div>
+    <div class="box"><div class="bar-heading"><b>历史验证区 · 同股随机对照</b><span class="pill subtle" id="controlPairs">载入中</span></div><div class="compare-grid"><div class="compare"><div class="name">原 3 日信号平均净收益</div><div class="val negative" id="signalAvg">—</div><div class="mini">含同口径交易费用</div></div><div class="compare"><div class="name">随机非信号日平均净收益</div><div class="val negative" id="controlAvg">—</div><div class="mini">同股同月匹配</div></div></div><div class="diff"><strong id="controlDifference">— pp</strong><span>信号减对照。差值为负，不意味着可以据此推断真实市场中的确定收益差异。</span></div><div class="band"><b id="controlClusterLabel">按股票聚类的 95% 重抽样区间</b><span id="controlClusterBounds">等待真实研究文件</span></div><p class="note">这份历史对照<strong>不构成独立前瞻验证</strong>。各股票共同受市场日期冲击，区间未完全调整跨股票同步相关性。</p></div>
+    <div class="box"><div class="bar-heading"><b>信号锁档进度</b><span class="pill" id="ledgerStatus">核验中</span></div><div class="timeline"><div class="step"><h3>已完成 · 证据链程序</h3><p>每个交易日单独记录日期、生成时间、来源 SHA、内容指纹及前一份哈希。</p></div><div class="step"><h3>已完成 · GitHub 分支保护</h3><p>Signal Evidence Protection 已验证为 Active，禁止删除及强制推送，绕过列表为空。</p></div><div class="step"><h3>未完成 · 首份真实收盘封存</h3><p id="ledgerDescription">2026-11-23 交易日为最早合格日期；首次写入以 GitHub 上实际可核验的记录为准，旧日期不能补写。</p></div></div><div class="band"><b>正式前瞻验收：<span id="verifiedProgress">等待独立验收 / 100</span></b><span id="sealedDates">仅有封存记录不等于完成可成交性及后续收益验证；最低要求 30 只不同股票。</span></div></div>
+    <div class="box"><div class="bar-heading"><b>研究覆盖口径</b><span class="pill subtle">历史成分不完整</span></div><div class="term"><span>有效历史研究股票</span><span class="right" id="historyEligible">—</span></div><div class="term"><span>当前股票目录</span><span class="right" id="masterCount">—</span></div><div class="term"><span>缺少有效研究历史</span><span class="right" id="missingHist">—</span></div><div class="term"><span>当前名称含 ST／退</span><span class="right" id="currentST">—</span></div><div class="term"><span>研究期间实际退市／历史 ST 数</span><span class="right">无法核实</span></div><p class="note">现有股票目录不能还原每个历史时点的上市状态，不能将当前 ST 数字冒充历史退市／ST 数量。</p></div>
+    <div class="box"><b style="font-size:13px">防误读规则</b><p class="note">5 组过滤 × 4 个持有期 × 价格门槛都在同一份历史数据上被研究过，<strong>最优组存在选择偏差，不作独立结论</strong>。这轮只验证「原策略表现是否经得起审计」，不发布任何「策略改善」结论。</p></div>
+  </section>
+  <section class="panel" id="guide" role="tabpanel" aria-labelledby="tab-guide" hidden>
+    <div class="section-title"><h2>在手机上怎么使用</h2><small>3 个步骤</small></div>
+    <div class="box"><div class="instruction"><div class="no">1</div><div><b>进入完整功能</b><p>手机首页展示动态盘后数据及证据研究。点击「完整功能」，继续使用原系统的个股分析、自选股、模拟持仓、1／3／5／10 日回测与信号追踪。原有本机记录使用同一域名，不会迁移或清空。</p></div></div><div class="instruction"><div class="no">2</div><div><b>添加到手机主屏幕</b><p>iPhone：Safari 分享 → 添加到主屏幕。Android：Chrome 菜单 → 添加到主屏幕或安装应用。</p></div></div><div class="instruction"><div class="no">3</div><div><b>查看日期与证据状态</b><p>先核对行情源日期、盘后筛选日期、历史覆盖率及证据锁档记录。过期行情不应被当作实时提示。</p></div></div></div>
+    <div class="box"><div class="bar-heading"><b>策略不变性核验</b><span class="pill subtle">000001 冻结样本</span></div><div class="term"><span>历史回测交易笔数</span><span class="right">8 笔</span></div><div class="term"><span>胜率</span><span class="right">25.00%</span></div><div class="term"><span>累计盈亏</span><span class="right negative">−98.817387 元</span></div><div class="term"><span>Profit Factor</span><span class="right">0.194650877</span></div><p class="note">这些是改版前后保持一致的历史回归数值，并非该股票目前的收益或投资建议。</p></div>
+    <a class="linkbtn" href="./app.html">进入完整功能 <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17 17 7M8 7h9v9"/></svg></a>
+    <button class="secondarybtn" type="button" id="copyLink">复制完整功能网址</button>
+    <div class="fineprint">原策略不变 · 不允许启用候选规则 · 不提供买卖建议或自动下单。<br>手机首页 · 研究数据以最新实际发布为准</div>
+  </section>
+</main>
+<nav class="bottom" aria-label="底部导航">
+  <button type="button" class="active" data-goto="daily"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M7 8h10M7 12h7M7 16h5"/></svg>盘后观察</button>
+  <button type="button" data-goto="evidence"><svg viewBox="0 0 24 24"><path d="m12 2 8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>历史证据</button>
+  <button type="button" data-goto="guide"><svg viewBox="0 0 24 24"><path d="M12 20v-9M4 4.5c3-1.3 5.8-.8 8 .8 2.2-1.6 5-2.1 8-.8V18c-3-1.3-5.8-.8-8 .8-2.2-1.6-5-2.1-8-.8z"/></svg>使用说明</button>
+  <a href="./app.html" aria-label="打开完整功能"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>完整功能</a>
+</nav>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+<script>
+(function(){'use strict';
+  let stocks=[];
+  const $$=s=>[...document.querySelectorAll(s)], $=s=>document.querySelector(s);
+  let filter='all';
+  function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  function showTab(id){
+    $$('.panel').forEach(el=>{el.hidden=el.id!==id;});
+    $$('[role="tab"]').forEach(el=>el.setAttribute('aria-selected',String(el.dataset.tab===id)));
+    $$('[data-goto]').forEach(el=>el.classList.toggle('active',el.dataset.goto===id));
+    $('.switcher').scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+  }
+  function render(){
+    const text=$('#searchStock').value.trim().toLowerCase();
+    const rows=stocks.filter(s=>(filter==='all'||s.signal)&&(s.code.includes(text)||s.name.toLowerCase().includes(text)));
+    $('#listCount').textContent='展示 '+rows.length+' 只';
+    $('#stockList').innerHTML=rows.length?rows.map(s=>`<article class="signal-card ${s.signal?'featured':''}">
+      <div class="stockline"><div><span class="stockname">${esc(s.name)}</span><span class="code">${esc(s.code)}</span></div><span class="pill ${s.signal?'dark':'subtle'}">${s.signal?'收盘确认':'仅评分候选'}</span></div>
+      <div class="stockbottom"><div class="part"><small>当日收盘价</small><b>${s.price.toFixed(2)} <span style="font-size:10px;font-weight:400">元</span></b></div><div class="part"><small>研究评分</small><b class="accent">${s.score}<span style="font-size:10px;font-weight:400"> / 100</span></b></div>${s.signal?`<div class="part"><small>当日量比</small><b>${s.volume.toFixed(2)}x</b></div>`:''}</div>
+      <div class="footerline"><span class="mini">${s.signal?`原5项条件满足 · 观察价区间 ${s.buyLow.toFixed(3)}—${s.buyHigh.toFixed(3)} 元`:'评分不能代替 5 项买入条件'}</span></div>
+    </article>`).join(''):'<div class="box empty">当前筛选没有匹配的股票</div>';
+  }
+  $$('[role="tab"]').forEach(el=>el.addEventListener('click',()=>showTab(el.dataset.tab)));
+  $$('[data-goto]').forEach(el=>el.addEventListener('click',()=>showTab(el.dataset.goto)));
+  $$('[data-filter]').forEach(el=>el.addEventListener('click',()=>{filter=el.dataset.filter;$$('[data-filter]').forEach(e=>e.classList.toggle('active',e===el));render();}));
+  $('#searchStock').addEventListener('input',render);
+  $('#copyLink').addEventListener('click',async()=>{const url=new URL('./app.html',window.location.href).href;let ok=false;try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(url);ok=true;}}catch(e){}if(!ok){const el=document.createElement('textarea');el.value=url;document.body.appendChild(el);el.select();try{ok=document.execCommand('copy');}catch(e){}el.remove();}const t=$('#toast');t.textContent=ok?'正式网址已复制':'复制受限：请使用网页右上角「完整功能」';t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2300);});
+
+  function plainNum(v, digits=0){return Number.isFinite(Number(v)) ? Number(v).toLocaleString('zh-CN',{minimumFractionDigits:digits,maximumFractionDigits:digits}) : '—';}
+  function percent(v){return Number.isFinite(Number(v))?(Number(v)>0?'+':'')+Number(v).toFixed(2)+'%':'—';}
+  function setText(id,value){const node=document.getElementById(id);if(node)node.textContent=String(value);}
+  async function getJSON(path){const response=await fetch(path,{cache:'no-store'});if(!response.ok)throw Error(String(response.status));return response.json();}
+  async function loadLatestResearch(){
+    const screenTask=getJSON('./data/screen.json').then(data=>{
+      if(data.schema!==1||!/^\d{4}-\d{2}-\d{2}$/.test(data.asof)||!Array.isArray(data.rows))throw Error('盘后数据不完整');
+      const count=Number(data.buy_watch_count??data.total_signals??data.rows.filter(s=>s.entry_signal===true).length);
+      const covered=Number(data.covered_count)||0,eligible=Number(data.eligible_count)||0, pct=eligible?100*covered/eligible:0;
+      setText('screenDateLine','POST-CLOSE RESEARCH · '+data.asof.replaceAll('-','.'));
+      setText('lastScreenDate','数据截至 '+data.asof);
+      setText('signalCount',plainNum(count));
+      setText('coveredCount',plainNum(covered));
+      setText('eligibleCount','/ '+plainNum(eligible));
+      setText('coverageText',(covered<eligible?'覆盖不完整 · ':'筛选覆盖 · ')+plainNum(pct,1)+'%');
+      document.getElementById('coverageProgress').style.width=Math.max(0,Math.min(100,pct))+'%';
+      setText('mobileStatus','上次盘后数据 '+data.asof+'（生成于 '+(data.generated_at||'未知')+'），不是实时股价。');
+      stocks=data.rows.slice(0,100).map(row=>({
+        code:String(row.code||''),name:String(row.name||row.code||''),
+        score:Number(row.score)||0,price:Number(row.close)||0,signal:row.entry_signal===true,
+        volume:Number(row.volume_ratio),buyLow:Number(row.buy_low),buyHigh:Number(row.buy_high)
+      })).filter(s=>/^\d{6}$/.test(s.code));
+      render();
+    }).catch(e=>{
+      setText('mobileStatus','盘后数据暂无法读取（'+String(e.message||'网络不可用')+'）。不会展示过期快照作为今日结果；请稍后刷新或使用完整功能。');
+      setText('listCount','数据暂不可用');
+      document.getElementById('stockList').innerHTML='<div class="box empty">盘后数据无法验证，暂不显示买入观察清单。</div>';
+    });
+    const evidenceTask=getJSON('./data/evidence_control.json').then(d=>{
+      if(d.schema!==1||!d.rules_frozen||d.auto_activate!==false||!d.results?.historical_test)throw Error('研究校验不通过');
+      const r=d.results.historical_test;
+      setText('controlPairs',plainNum(r.matchedPairs)+' 对');
+      setText('signalAvg',percent(r.signalAvgNetPct));
+      setText('controlAvg',percent(r.controlAvgNetPct));
+      setText('controlDifference',Number.isFinite(Number(r.signalMinusControlPp))?Number(r.signalMinusControlPp).toFixed(2)+' pp':'— pp');
+      setText('controlClusterLabel','按 '+plainNum(r.distinctStocks)+' 只股票聚类的 95% 重抽样区间');
+      const b=r.clusterBootstrap95Pp;
+      setText('controlClusterBounds',Array.isArray(b)&&b.length===2?b[0].toFixed(2)+' 至 '+b[1].toFixed(2)+' 个百分点 · 按股票聚类而非逐笔计算':'证据不足，无法计算');
+    }).catch(()=>{
+      setText('controlPairs','研究暂不可用');
+      setText('controlClusterBounds','研究文件暂不可用；不推断策略改善');
+    });
+    const universeTask=getJSON('./data/backtest_v2.json').then(d=>{
+      const v=d.universe_audit;if(!v)throw Error('覆盖记录未生成');
+      setText('historyEligible',plainNum(v.valid_history_files_in_research)+' 只');
+      setText('masterCount',plainNum(v.current_directory_stocks)+' 只');
+      setText('missingHist',plainNum(v.directory_missing_valid_history)+' 只');
+      setText('currentST',plainNum(v.current_names_flagged_ST_or_delisting)+' 只');
+    }).catch(()=>{setText('historyEligible','待核验');});
+    // The ledger branch is separate from the Pages deployment; a branch listing
+    // is NOT an independent hash-chain validation or the completed-signal score.
+    const ledgerTask=getJSON('https://api.github.com/repos/gritechomepm-art/ashare-quant-personal/contents/evidence?ref=signal-evidence-ledger').then(items=>{
+      if(!Array.isArray(items))throw Error('档案目录数据不完整');
+      const files=items.filter(i=>/^\d{4}-\d{2}-\d{2}\.json$/.test(i.name)).sort((a,b)=>b.name.localeCompare(a.name));
+      setText('ledgerStatus',files.length?'已有 '+files.length+' 天存档':'尚无封存文件');
+      setText('ledgerDescription',files.length?'GitHub 存档最新交易日 '+files[0].name.slice(0,10)+'；'+'仅确认目录中有记录，完整指纹链需独立审计，不能倒推当日及时封存。':'尚未发现首份封存文件；不允许补写旧日期。');
+      setText('sealedDates','GitHub 目录发现 '+files.length+' 个日期文件；已完成且独立验收的前瞻买入信号需另行核定，不能直接按目录条数计入100笔。');
+    }).catch(()=>{
+      setText('ledgerStatus','封存状态未核实');
+      setText('ledgerDescription','无法直接访问证据分支目录；请通过 GitHub 工作流与分支记录检查首次真实封存，不能因此认定已成功或失败。');
+    });
+    await Promise.allSettled([screenTask,evidenceTask,universeTask,ledgerTask]);
+  }
+  render();
+  loadLatestResearch();
+})();
+</script>
+</body>
+</html>
