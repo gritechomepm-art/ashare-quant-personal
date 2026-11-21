@@ -132,6 +132,24 @@ const prospective={start_date:prospectiveStart,completed_3day_paired_signals:pro
   status:prospectiveTrades.length>=100&&prospectiveStocks>=30?'OBSERVATIONS_AVAILABLE_REVIEW_REQUIRED':'WAIT_FOR_FUTURE_SAMPLES',
   auto_promotion:false,
   note:'2026-11-20 起新增的真实日线才可作为前瞻观察；不能重新把已分析的历史测试集称为全新样本。'};
+// Universe accounting: present current directory counts only; historic delistings
+// or historic ST statuses cannot be reconstructed from the current master.
+const masterFile=path.join(ROOT,'data','stocks.json');
+const master=fs.existsSync(masterFile)?JSON.parse(fs.readFileSync(masterFile,'utf8')):{};
+const masterStocks=master.stocks||{}, masterCodes=Object.keys(masterStocks);
+const eligibleCodes=new Set(all.filter(({bars})=>bars.length>=100).map(x=>x.code));
+const namedST=masterCodes.filter(c=>/ST|退市|退/i.test(String(masterStocks[c]?.name||'')));
+const masterUncovered=masterCodes.filter(c=>!eligibleCodes.has(c));
+const universeAudit={
+ directory_asof:master.asof||null,
+ current_directory_stocks:masterCodes.length,
+ valid_history_files_in_research:usable,
+ directory_missing_valid_history:masterUncovered.length,
+ current_names_flagged_ST_or_delisting:namedST.length,
+ historic_delisted_count:null,
+ historic_ST_during_study_count:null,
+ unknown_explanation:'Current stock master is not a point-in-time constituent history. Historic delistings and ST occurrences cannot be counted from these files, and a current ST name is not proof of ST during an earlier period.'
+};
 const report={
   schema:2,model:'A-share V2.0 single-stock rules, multi-horizon paired and sequential',
   generated_at:new Date().toISOString(), cutoff_date:cutDate,
@@ -144,7 +162,7 @@ const report={
   horizons:BT.HORIZONS,price_filter:'none; mirrors current single-stock backtest',
   assumptions:'100 shares, 0.1% each-side slippage, max(5 RMB, 0.03%) each-side commission, 0.05% sell stamp; T+1; same signal-date ATR; next-day opening no-chase check; conservative same-bar stop precedence; no live executable prices.',
   caveats:'Incomplete universe, no delistings, no suspension/limit-up fill simulation, no corporate action adjustments. Paired signals can overlap; pooled averages are not portfolio returns. Parameters have not been tuned on holdout.',
-  metrics,comparison,diagnostic,prospective
+  metrics,comparison,diagnostic,prospective,universe_audit:universeAudit
 };
 fs.mkdirSync(path.dirname(outPath),{recursive:true});
 fs.writeFileSync(outPath,JSON.stringify(report,null,2)+'\n','utf8');
