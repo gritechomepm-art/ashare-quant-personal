@@ -132,7 +132,7 @@ def load_codes():
     days_old = (datetime.now(CST).date() - screening_day).days
     if days_old < 0 or days_old > 10:
         raise RuntimeError(f"EOD screen date out of bounds: {asof}; refusing stale opportunity pool")
-    source = f"EOD SH/SZ main-board screen {asof}; BUY first; observation score >= {OPPORTUNITY_SCORE_MIN}; max {OPPORTUNITY_CAP}; partial-coverage possible"
+    source = f"EOD screen {asof}; SH/SZ main-board only; BUY first; observation score >= {OPPORTUNITY_SCORE_MIN}; max {OPPORTUNITY_CAP}; partial-coverage possible"
     return codes, source
 
 
