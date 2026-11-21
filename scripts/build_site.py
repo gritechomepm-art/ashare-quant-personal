@@ -11,6 +11,12 @@ def main():
     site.mkdir()
     for file in ['index.html','manifest.webmanifest','sw.js']:
         shutil.copy2(BASE/file,site/file)
+    # Publish the approved mobile landing at / while preserving the original
+    # fully functional app at /app.html, same origin and localStorage keys.
+    # Keep source index.html frozen: the strategy JS is extracted from it by
+    # historical comparison scripts and tested against source SHA baselines.
+    shutil.copy2(BASE/'index.html', site/'app.html')
+    shutil.copy2(BASE/'mobile.html', site/'index.html')
     (site/'assets').mkdir()
     shutil.copy2(BASE/'assets'/'icon.svg',site/'assets'/'icon.svg')
     shutil.copy2(BASE/'assets'/'backtest-v2.js',site/'assets'/'backtest-v2.js')
