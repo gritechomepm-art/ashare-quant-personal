@@ -4,6 +4,7 @@ import shutil
 import subprocess
 from core import BASE
 from slice_signal_tracker import split_tracker
+from mainboard_page import patch_full_app_for_mainboard
 
 def main():
     site=BASE/'site'
@@ -16,6 +17,10 @@ def main():
     # Keep source index.html frozen: the strategy JS is extracted from it by
     # historical comparison scripts and tested against source SHA baselines.
     shutil.copy2(BASE/'index.html', site/'app.html')
+    # Restrict only the public screening UI. Source strategy JS is immutable.
+    app_path=site/'app.html'
+    app_path.write_text(patch_full_app_for_mainboard(app_path.read_text(encoding='utf-8')),
+                        encoding='utf-8')
     shutil.copy2(BASE/'mobile.html', site/'index.html')
     (site/'assets').mkdir()
     shutil.copy2(BASE/'assets'/'icon.svg',site/'assets'/'icon.svg')

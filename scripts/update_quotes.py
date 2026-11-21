@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
+from mainboard_scope import is_mainboard_code
 
 ROOT = Path(__file__).resolve().parents[1]
 CST = ZoneInfo("Asia/Shanghai")
@@ -90,7 +91,7 @@ def select_opportunity_codes(screen, min_score=OPPORTUNITY_SCORE_MIN, cap=OPPORT
         if not isinstance(row, dict):
             continue
         code = str(row.get("code", ""))
-        if not re.fullmatch(r"\d{6}", code):
+        if not is_mainboard_code(code):
             continue
         try:
             close = float(row.get("close"))
@@ -131,7 +132,7 @@ def load_codes():
     days_old = (datetime.now(CST).date() - screening_day).days
     if days_old < 0 or days_old > 10:
         raise RuntimeError(f"EOD screen date out of bounds: {asof}; refusing stale opportunity pool")
-    source = f"EOD screen {asof}; BUY first; observation score >= {OPPORTUNITY_SCORE_MIN}; max {OPPORTUNITY_CAP}; partial-coverage possible"
+    source = f"EOD screen {asof}; SH/SZ main-board only; BUY first; observation score >= {OPPORTUNITY_SCORE_MIN}; max {OPPORTUNITY_CAP}; partial-coverage possible"
     return codes, source
 
 

@@ -6,6 +6,7 @@ from pathlib import Path
 import akshare as ak
 import pandas as pd
 from core import ROOT,load_json,norm_hist,norm_spot,atomic_json,now_cst,make_screen,append_bar_from_quote,is_eligible
+from mainboard_scope import is_mainboard_code
 
 def is_trade_date(date):
     x=ak.tool_trade_date_hist_sina()
@@ -24,7 +25,7 @@ def main(root=ROOT,max_new=600,max_seconds=1000,retries=2,sleep=0.4):
     fetched=norm_spot(ak.stock_zh_a_spot_em(),today)
     quotes=fetched['quotes']
     atomic_json(root/'quotes.json',fetched)
-    eligible=[(c,q) for c,q in sorted(quotes.items()) if is_eligible(c,q['name'],q)]
+    eligible=[(c,q) for c,q in sorted(quotes.items()) if is_mainboard_code(c) and is_eligible(c,q['name'],q)]
     fresh=0;bootstrapped=0;failure=[];start=time.monotonic()
     for code,quote in eligible:
         path=root/'history'/f'{code}.json'
@@ -53,10 +54,18 @@ def main(root=ROOT,max_new=600,max_seconds=1000,retries=2,sleep=0.4):
                 if attempt==retries:failure.append([code,str(exc)[:90]])
                 else:time.sleep(1.5*(attempt+1))
         time.sleep(sleep)
-    screen=make_screen(fetched,root,asof)
+    # Only SH/SZ main board reaches the screening calculation. Keep the
+    # full published quote master for manual lookup; never rewrite history.
+    main_quotes={c:q for c,q in quotes.items() if is_mainboard_code(c)}
+    screen=make_screen({'quotes':main_quotes},root,asof)
+    screen['board_scope']='SH_SZ_MAIN'
+    screen['board_label']='沪深主板（含原中小板002）'
+    screen['all_a_universe_count']=len(quotes)
+    screen['filter_note']='仅沪深主板；'+screen['filter_note']
     atomic_json(root/'screen.json',screen)
     atomic_json(root/'job_status.json',{'status':'ok','asof':asof,
-        'full_universe':len(quotes),'history_updated':fresh,
+        'full_universe':len(quotes),'screening_universe':len(main_quotes),
+        'board_scope':'SH_SZ_MAIN','history_updated':fresh,
         'new_histories':bootstrapped,'failed_count':len(failure),
         'failed_samples':failure[:12],'coverage_pct':screen['coverage_pct'],
         'generated_at':now_cst().isoformat(timespec='seconds')})
