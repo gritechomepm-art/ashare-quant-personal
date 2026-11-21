@@ -1,0 +1,72 @@
+name: AShare EOD evidence sealing (append-only)
+on:
+  # Beijing 03:35 on Tue–Sat, after the two EOD/backfill attempts.
+  schedule:
+    - cron: '35 19 * * 1-5'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: ashare-signal-evidence-ledger
+  cancel-in-progress: false
+jobs:
+  seal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Capture committed EOD source and sealing code before branch switch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp scripts/seal_signal_evidence.py "$RUNNER_TEMP/seal_signal_evidence.py"
+          cp data/screen.json "$RUNNER_TEMP/eod_screen.json"
+          echo "SOURCE_MAIN_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Seal on the independent fast-forward-only evidence branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git ls-remote --exit-code --heads origin signal-evidence-ledger >/dev/null 2>&1; then
+            git fetch origin refs/heads/signal-evidence-ledger:refs/remotes/origin/signal-evidence-ledger
+            git switch -c signal-evidence-ledger --track origin/signal-evidence-ledger
+          else
+            git switch --orphan signal-evidence-ledger
+            git rm -rf --ignore-unmatch . >/dev/null 2>&1 || true
+          fi
+          mkdir -p evidence
+          python "$RUNNER_TEMP/seal_signal_evidence.py" \
+            --screen "$RUNNER_TEMP/eod_screen.json" \
+            --ledger-dir evidence \
+            --source-commit "$SOURCE_MAIN_COMMIT" \
+            | tee "$RUNNER_TEMP/seal-result.json"
+          git add evidence/*.json
+          if git diff --cached --quiet; then
+            echo "Evidence already sealed and byte-identical; no new commit." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git diff --cached --name-status > "$RUNNER_TEMP/changed-files.txt"
+          if grep -Ev '^A[[:space:]]+evidence/[0-9]{4}-[0-9]{2}-[0-9]{2}\.json$' "$RUNNER_TEMP/changed-files.txt"; then
+            echo 'Refusing any evidence update or deletion' >&2
+            exit 1
+          fi
+          python -c 'import json,os;print(json.load(open(os.environ["RUNNER_TEMP"]+"/seal-result.json"))["session_date"])' > "$RUNNER_TEMP/session.txt"
+          git commit -m "evidence: seal $(cat "$RUNNER_TEMP/session.txt")"
+          # Never force-push. Any concurrent branch advance fails closed.
+          git push origin HEAD:refs/heads/signal-evidence-ledger
+          echo "Source main: $SOURCE_MAIN_COMMIT" >> "$GITHUB_STEP_SUMMARY"
+          echo "Ledger commit: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP/seal-result.json" >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve independent 90-day job evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: asha-evidence-seal-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/seal-result.json
+            ${{ runner.temp }}/changed-files.txt
+          if-no-files-found: ignore
+          retention-days: 90
