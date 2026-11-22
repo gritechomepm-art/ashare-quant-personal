@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/quotes.yml'
       - 'scripts/update_quotes.py'
+      - 'scripts/check_quote_readiness.py'
       - 'scripts/record_intraday_signals.py'
       - 'tests/test_intraday_signal_recorder.py'
       - 'tests/test_quotes.py'
@@ -39,14 +40,26 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Preflight EOD-screened main-board candidate pool
+        id: readiness
+        shell: bash
+        run: |
+          python3 scripts/check_quote_readiness.py \
+            --screen data/screen.json \
+            --github-output "$GITHUB_OUTPUT" \
+            --github-summary "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-python@v5
+        if: steps.readiness.outputs.fetch == 'true'
         with:
           python-version: '3.11'
       - name: Install quote test dependency
+        if: steps.readiness.outputs.fetch == 'true'
         run: python -m pip install pytest
       - name: Validate quote normalization
+        if: steps.readiness.outputs.fetch == 'true'
         run: pytest -q tests/test_quotes.py
       - name: Check trigger and actual market clock
+        if: steps.readiness.outputs.fetch == 'true'
         id: clock
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -72,7 +85,7 @@ jobs:
           print("trigger=" + event)
           PY
       - name: Record skipped unsuccessful upstream EOD run
-        if: steps.clock.outputs.run != 'true'
+        if: steps.readiness.outputs.fetch == 'true' && steps.clock.outputs.run != 'true'
         shell: bash
         run: |
           {
@@ -83,16 +96,16 @@ jobs:
             echo "- Collection mode: ${{ steps.clock.outputs.collection_mode }}"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Preserve recorder and close-confirm candidate snapshot before branch switch
-        if: steps.clock.outputs.run == 'true'
+        if: steps.readiness.outputs.fetch == 'true' && steps.clock.outputs.run == 'true'
         shell: bash
         run: |
           cp scripts/record_intraday_signals.py /tmp/ashare-record-intraday.py
           cp data/screen.json /tmp/ashare-screen.json
       - name: Fetch screened opportunity watch-pool snapshot (including delayed catch-up)
-        if: steps.clock.outputs.run == 'true'
+        if: steps.readiness.outputs.fetch == 'true' && steps.clock.outputs.run == 'true'
         run: python scripts/update_quotes.py --output /tmp/ashare-latest-quotes.json
       - name: Validate and summarize fetched snapshot
-        if: steps.clock.outputs.run == 'true'
+        if: steps.readiness.outputs.fetch == 'true' && steps.clock.outputs.run == 'true'
         shell: bash
         run: |
           python - <<'PY'
@@ -120,7 +133,7 @@ jobs:
               f.write(f"- Screening source: {p.get('universe_source')}\n")
           PY
       - name: Publish rolling public quote-feed snapshot
-        if: steps.clock.outputs.run == 'true'
+        if: steps.readiness.outputs.fetch == 'true' && steps.clock.outputs.run == 'true'
         shell: bash
         run: |
           set -euo pipefail
