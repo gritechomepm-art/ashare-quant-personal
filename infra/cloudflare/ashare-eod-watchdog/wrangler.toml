@@ -1,0 +1,12 @@
+name = "ashare-eod-watchdog"
+main = "./src/index.mjs"
+compatibility_date = "2026-11-23"
+workers_dev = false
+
+# Cloudflare runs in UTC. 11:45, 13:45 UTC = 19:45, 21:45 Beijing.
+# Weekdays only. This Worker has NO public HTTP dispatch endpoint.
+[triggers]
+crons = ["45 11,13 * * 1-5"]
+
+[observability]
+enabled = true
