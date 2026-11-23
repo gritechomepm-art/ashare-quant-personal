@@ -62,12 +62,41 @@ jobs:
       - name: Bootstrap history and update cached bars from verified close quotes
         shell: bash
         run: |
+          # Pushes usually run a quick 15-stock QA batch. If a weekday EOD
+          # dispatch was missed and this is an after-close source repair push,
+          # recover with ONE normal 300-stock batch instead of publishing an
+          # unrepresentative 15-stock EOD snapshot.
+          batch_new=300
+          batch_seconds=1000
           if [ "$GITHUB_EVENT_NAME" = "push" ]; then
-            # Fast QA run for newly prioritized stocks; normal scheduled run fills 300.
-            python scripts/ingest_baostock.py --quotes-file /tmp/ashare-quote-feed.json --max-new 15 --max-seconds 180
-          else
-            python scripts/ingest_baostock.py --quotes-file /tmp/ashare-quote-feed.json --max-new 300 --max-seconds 1000
+            batch_new=15
+            batch_seconds=180
+            if python scripts/eod_staleness.py --screen data/screen.json --require-today-after-close; then
+              echo "Stale main-board EOD after close: one full-source recovery pass"
+              batch_new=300
+              batch_seconds=1000
+            fi
           fi
+          python scripts/ingest_baostock.py --quotes-file /tmp/ashare-quote-feed.json --max-new "$batch_new" --max-seconds "$batch_seconds"
+      - name: Validate output market scope and record EOD freshness
+        shell: bash
+        run: |
+          python scripts/eod_staleness.py --screen data/screen.json --require-mainboard
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          screen=json.loads(Path('data/screen.json').read_text(encoding='utf-8'))
+          status=json.loads(Path('data/baostock_status.json').read_text(encoding='utf-8'))
+          assert screen['asof']==status['asof']
+          assert screen['board_scope']=='SH_SZ_MAIN'
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf-8') as f:
+              f.write('## EOD source status (real BaoStock calendar)\n')
+              f.write(f"- As-of trading session: {screen['asof']}\n")
+              f.write(f"- Board: {screen['board_scope']}\n")
+              f.write(f"- Covered main-board histories: {screen['covered_count']}/{screen['eligible_count']}\n")
+              f.write(f"- Generated at: {screen['generated_at']}\n")
+              f.write('- Note: success here is collection, not publication; verify next push + Pages separately.\n')
+          PY
       - name: Merge latest durable intraday ledger before calculating outcomes
         run: cp /tmp/ashare-intraday-events.json data/intraday_signal_events.json
       - name: Build historical signal outcome tracker
