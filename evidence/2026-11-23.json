@@ -1,0 +1,39 @@
+{
+  "confirmed_signal_count": 1,
+  "confirmed_signals": [
+    {
+      "atr14": 0.266,
+      "buy_high": 10.336,
+      "buy_low": 10.204,
+      "code": "600292",
+      "entry_status": "BUY_WATCH",
+      "ma10": 10.119,
+      "ma5": 10.148,
+      "name": "电投水电",
+      "rsi14": 48.939,
+      "score": 100,
+      "signal_close": 10.27,
+      "signal_date": "2026-11-23",
+      "volume_ratio": 1.32
+    }
+  ],
+  "coverage": {
+    "covered_count": 300,
+    "eligible_count": 3053,
+    "screen_row_count": 292,
+    "source_screen_status": "partial",
+    "universe_count": 3194
+  },
+  "kind": "AShare verified close observation / not actual trade",
+  "previous_record_sha256": null,
+  "provenance_note": "Recorded only after actual EOD data was committed. This is the first verifiable seal time, not a claim of timestamped publication at 15:00.",
+  "record_sha256": "7187b9415f593c08e99dffd98e4ae7ac22afb7504f77c11e0c7c3561b1bb0b9a",
+  "schema": 1,
+  "sealed_at_beijing": "2026-11-24T12:24:24+08:00",
+  "sealed_at_utc": "2026-11-24T04:24:24+00:00",
+  "session_date": "2026-11-23",
+  "signal_content_sha256": "41121a48a42afc8028cd8fdaad0a7939c438b1e75b6263a823bb48ccb365472b",
+  "source_main_commit": "06de8294b77e15ea7e6a6594ecf0ab794a4178dc",
+  "source_screen_generated_at": "2026-11-23T19:23:51+08:00",
+  "source_screen_sha256": "a19e2be153562fb64a55d7d7eec019cf2d37e54dcd1a96f3fdfe7ac6ba482ddf"
+}
