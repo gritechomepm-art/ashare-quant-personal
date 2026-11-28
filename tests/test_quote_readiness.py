@@ -19,9 +19,11 @@ def screen(rows, scope="SH_SZ_MAIN"):
             "status":"partial","eligible_count":3052}
 
 
-def test_wait_for_mainboard_eod_when_old_market_screen_has_no_matching_board_scope():
-    old=json.loads((ROOT/"data/screen.json").read_text(encoding="utf8"))
-    assert old.get("board_scope")!="SH_SZ_MAIN"
+def test_wait_for_mainboard_eod_when_legacy_full_market_screen_has_no_matching_board_scope():
+    # Use an isolated legacy fixture. Never assert that the live production
+    # screen must remain old; production data is expected to advance.
+    old={"schema":1,"asof":"2026-11-20","board_scope":"FULL_A","rows":[],
+         "status":"partial","eligible_count":3052}
     result=quote_readiness(old)
     assert result["status"]=="WAITING_MAINBOARD_EOD"
     assert result["can_fetch"] is False
