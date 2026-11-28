@@ -34,7 +34,11 @@ function hasCompleteMainboardScreen(screen, date) {
     && screen.covered_count >= screen.eligible_count;
 }
 
-export async function checkAndDispatch({ fetcher = fetch, now = new Date(), secret, log = console } = {}) {
+/**
+ * @param {{ fetcher?: typeof fetch, now?: Date, secret?: string, log?: Console }} [options]
+ */
+export async function checkAndDispatch(options = {}) {
+  const { fetcher = fetch, now = new Date(), secret, log = console } = options;
   const today = beijingClock(now);
   if (today.weekday === 0 || today.weekday === 6) {
     return { status: "MARKET_WEEKEND", date: today.date };
@@ -138,8 +142,9 @@ export async function checkAndDispatch({ fetcher = fetch, now = new Date(), secr
 
 export default {
   async scheduled(_controller, env, ctx) {
+    const token = /** @type {{ GITHUB_ACTIONS_TOKEN?: string }} */ (env).GITHUB_ACTIONS_TOKEN;
     ctx.waitUntil(
-      checkAndDispatch({ secret: env.GITHUB_ACTIONS_TOKEN })
+      checkAndDispatch({ secret: token })
         .then(result => console.log(JSON.stringify(result)))
         .catch(error => console.error("AShare EOD watchdog ERROR:", error?.message || String(error)))
     );
