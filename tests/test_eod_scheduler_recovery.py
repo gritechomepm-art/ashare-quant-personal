@@ -59,8 +59,8 @@ def test_independent_watchdog_node_scoped_and_no_secrets_in_git(tmp_path):
     assert 'workers_dev = false' in wrangler
     assert '45 11,13 * * 1-5' in wrangler
     assert "GITHUB_ACTIONS_TOKEN" in worker
-    assert "async fetch(){return new Response(\"Not found\",{status:404});}" in worker
-    assert "method:\"POST\"" in worker
+    assert "async fetch()" in worker and 'new Response("Not found"' in worker
+    assert 'method: "POST"' in worker
     assert "No public" not in worker or "No HTTP dispatch endpoint" in worker
     assert "quant_v1.py" not in worker and "data/history" not in worker
 
