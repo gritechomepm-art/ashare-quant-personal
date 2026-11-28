@@ -1,6 +1,6 @@
 # AShare EOD Cloudflare Cron watchdog — deployment required
 
-This is **independent scheduling only**, NOT a market data fetcher, screener, or backtester. It checks the published GitHub `data/screen.json`; if it is not today's `board_scope=SH_SZ_MAIN` and no current BaoStock run is in progress / no `workflow_dispatch` has been recorded today, it dispatches the **existing** GitHub Actions workflow on current `main`. It does not push source, rewrite cache or fabricate signal dates.
+This is **independent scheduling only**, NOT a market data fetcher, screener, or backtester. It checks the published GitHub `data/screen.json`; if it is not today's complete `board_scope=SH_SZ_MAIN` screen (including `covered_count >= eligible_count` and non-partial status) and no current BaoStock run is in progress / no dispatch has been recorded in the current time slot, it dispatches the **existing** GitHub Actions workflow on current `main`. It does not push source, rewrite cache or fabricate signal dates.
 
 ## Cloudflare one-time setup (not yet deployed)
 
@@ -13,7 +13,7 @@ This is **independent scheduling only**, NOT a market data fetcher, screener, or
    ```
    Provide the token at the local masked terminal prompt. Do not run deploy until the account and secret are available. Verify the Worker has exactly the two cron triggers and no HTTP route. Cloudflare Cron changes can take several minutes to propagate.
 3. Observe the next working day in Workers → Logs: outcomes `EOD_FRESH`, `EOD_IN_PROGRESS`, `DISPATCH_ALREADY_RECORDED` or `DISPATCHED` (or explicit error); then confirm the dispatched GitHub run and the resulting **main** `data/screen.json` `asof`, `board_scope`, `covered_count`.
-4. Cloudflare 19:45/21:45 Beijing are **watchdog retries only**; GitHub 17:37/18:17 scheduled jobs stay unchanged. At most one externally dispatched workflow per Beijing date; never compete with a queued or active GH run. During Chinese trading holidays a retry may be unnecessary; BaoStock's trade calendar is the authority for the final asof.
+4. Cloudflare 19:45/21:45 Beijing are **watchdog retries only**; GitHub 17:37/18:17 scheduled jobs stay unchanged. At most one externally dispatched workflow per Cron slot (19:45 and 21:45), up to two bounded attempts per Beijing date; a failed first-slot dispatch does not block the second slot. Never compete with a queued or active GH run. A screen with today's date but only partial history coverage is still incomplete and can trigger a bounded retry. During Chinese trading holidays a retry may be unnecessary; BaoStock's trade calendar is the authority for the final asof.
 
 ## Operational limits
 
