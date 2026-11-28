@@ -41,7 +41,7 @@ def test_new_mainboard_eod_with_zero_signals_is_safe_noop():
     assert result["candidates"]==0
 
 
-def test_genuine_close_screen_mainboard_candidates_activate_existing_5minute_monitor():
+def test_genuine_close_screen_mainboard_candidates_activate_existing_intraday_monitor():
     result=quote_readiness(screen([
         {"code":"600000","score":70,"entry_signal":False,"close":12},
         {"code":"002532","score":20,"entry_signal":True,"close":15},
