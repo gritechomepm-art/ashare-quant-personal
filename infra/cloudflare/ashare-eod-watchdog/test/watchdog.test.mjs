@@ -84,7 +84,7 @@ test("first-slot manual dispatch suppresses another dispatch in the same slot", 
   const m = mock({
     runs: [{
       event: "workflow_dispatch", status: "completed", conclusion: "failure",
-      head_branch: "main", created_at: "2026-11-23T11:47:00Z"
+      head_branch: "main", created_at: "2026-11-23T11:44:00Z"
     }]
   });
   const result = await checkAndDispatch({ now: FIRST, secret: "test", fetcher: m.fetcher });
@@ -111,7 +111,7 @@ test("second-slot dispatch is deduplicated", async () => {
   const m = mock({
     runs: [{
       event: "workflow_dispatch", status: "completed", conclusion: "failure",
-      head_branch: "main", created_at: "2026-11-23T13:46:00Z"
+      head_branch: "main", created_at: "2026-11-23T13:44:00Z"
     }]
   });
   const result = await checkAndDispatch({ now: SECOND, secret: "test", fetcher: m.fetcher });
