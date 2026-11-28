@@ -94,8 +94,9 @@ def test_zero_candidate_paths_run_before_install_and_skip_every_mutation():
     assert "--github-summary \"$GITHUB_STEP_SUMMARY\"" in w
     assert w.count("steps.readiness.outputs.fetch")>=8
     assert "steps.readiness.outputs.fetch == 'true' && steps.clock.outputs.run == 'true'" in w
-    assert "3-58/5 1-3,5-7 * * 1-5" in w
-    assert "11 7 * * 1-5" in w
+    assert "30 6 * * 1-5" in w  # 14:30 Beijing intraday snapshot
+    assert "3-58/5 1-3,5-7 * * 1-5" not in w
+    assert "11 7 * * 1-5" in w  # 15:11 Beijing post-close catch-up
     assert "python scripts/update_quotes.py --output /tmp/ashare-latest-quotes.json" in w
     quote=(ROOT/"scripts/update_quotes.py").read_text(encoding="utf8")
     assert "No qualified opportunity candidates in EOD screen; refuse all-market fallback" in quote
