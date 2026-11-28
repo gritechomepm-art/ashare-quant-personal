@@ -14,10 +14,10 @@ on:
       - 'data/screen.json'
       - 'tests/test_opportunity_pool.py'
   schedule:
-    # Offset to 03/08/13... UTC to reduce top-of-hour contention. GitHub may delay tasks for hours.
-    # GitHub schedule is best-effort; the market-session guard is authoritative.
-    - cron: '3-58/5 1-3,5-7 * * 1-5'
-    # Post-close catch-up target: Beijing 15:11; delayed runs still fetch true source-time quotes.
+    # One intraday snapshot target: 14:30 Beijing (06:30 UTC) on trading weekdays.
+    # GitHub schedule is best-effort; delayed or missed runs are possible.
+    - cron: '30 6 * * 1-5'
+    # Keep the post-close catch-up target: Beijing 15:11 (07:11 UTC).
     - cron: '11 7 * * 1-5'
   workflow_run:
     workflows: ['AShare BaoStock staged history bootstrap']
